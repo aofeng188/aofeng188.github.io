@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>紫禁城漫游</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="在浏览器里三维漫游北京故宫：鸟瞰、漫步、中轴线导览，昼夜四季与雪景。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;900&display=swap">
+<style>
+/* 布局：全屏三维画布 + 四角悬浮的漆器质感面板；单一深色外观 */
+:root {
+  --ink: #120e0c;
+  --lacquer: rgba(24, 16, 13, 0.86);
+  --lacquer-solid: #1c1411;
+  --line: rgba(216, 178, 90, 0.32);
+  --gold: #d8b25a;
+  --gold-hi: #f2d68a;
+  --vermilion: #b8392a;
+  --jade: #3d8a78;
+  --lapis: #1d3768;
+  --paper: #f2e9d8;
+  --muted: #b9aa90;
+  --serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --r: 6px;
+  --gap: 10px;
+  --sl: env(safe-area-inset-left, 0px);
+  --sr: env(safe-area-inset-right, 0px);
+  --st: env(safe-area-inset-top, 0px);
+  --sb: env(safe-area-inset-bottom, 0px);
+  color-scheme: dark;
+}
+html, body { height: 100%; margin: 0; overflow: hidden; background: var(--ink); color: var(--paper); font: 14px/1.6 var(--sans); }
+body { -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.panel { background: var(--lacquer); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(0,0,0,0.35); }
+.btn { background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 6px 12px; color: var(--paper); line-height: 1.3; }
+.btn:hover { border-color: var(--gold); color: var(--gold-hi); }
+.btn.on, .btn[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: #1a120e; font-weight: 700; }
+
+/* ---------- 加载 ---------- */
+#loading { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background:
+  radial-gradient(ellipse at 50% 38%, #3a1712 0%, #1b0d0a 58%, #0d0807 100%); padding: max(16px, var(--st)) max(16px, var(--sr)) max(16px, var(--sb)) max(16px, var(--sl)); transition: opacity .8s ease; }
+#loading.out { opacity: 0; pointer-events: none; }
+.ld { display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; max-width: 34rem; }
+.ld-plaque { writing-mode: vertical-rl; font: 900 44px/1 var(--serif); letter-spacing: .18em; color: var(--gold-hi); background: linear-gradient(#24427e, #162b57); padding: 22px 16px; border: 6px solid #c79b45; outline: 2px solid #7a5a22; outline-offset: -14px; box-shadow: 0 10px 40px rgba(0,0,0,.55); text-shadow: 0 2px 3px rgba(0,0,0,.5); }
+.ld-sub { margin: 0; font: 600 18px var(--serif); letter-spacing: .3em; color: var(--paper); }
+.ld-bar { width: min(280px, 70vw); height: 2px; background: rgba(216,178,90,.18); overflow: hidden; }
+.ld-bar i { display: block; height: 100%; width: 0; background: var(--gold); transition: width .3s ease; }
+#ldText { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .1em; min-height: 1.6em; }
+#ldFact { margin: 0; color: var(--paper); font: 600 15px/1.8 var(--serif); max-width: 26em; min-height: 3.6em; }
+#enterBtn { font: 700 17px var(--serif); letter-spacing: .3em; padding: 12px 34px 12px 40px; background: var(--vermilion); border: 1px solid #e0a35a; color: #fff6e6; border-radius: 3px; box-shadow: 0 6px 20px rgba(184,57,42,.35); }
+#enterBtn:hover { background: #c94532; }
+.ld-note { margin: 0; color: var(--muted); font-size: 12px; }
+
+/* ---------- 顶部 ---------- */
+#tl { position: fixed; z-index: 10; top: calc(12px + var(--st)); left: max(16px, var(--sl)); display: flex; align-items: stretch; gap: 0; }
+.brand { display: flex; align-items: center; }
+.brand b { font: 900 18px/1 var(--serif); letter-spacing: .14em; color: var(--gold-hi); background: linear-gradient(#24427e, #162b57); border: 2px solid #c79b45; padding: 8px 10px 8px 12px; }
+.brand .place { padding: 0 12px; font: 600 15px var(--serif); display: flex; align-items: center; gap: 6px; min-height: 36px; border-left: 0; border-radius: 0 var(--r) var(--r) 0; cursor: pointer; }
+.brand .place small { color: var(--muted); font: 400 12px var(--sans); }
+#tr { position: fixed; z-index: 10; top: calc(12px + var(--st)); right: max(16px, var(--sr)); display: flex; gap: var(--gap); align-items: center; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100vw - 220px); }
+.seg { display: flex; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; padding: 6px 14px; border-radius: 4px; font: 600 14px var(--serif); letter-spacing: .1em; }
+.seg button.on { background: var(--gold); color: #1a120e; }
+.tools { display: flex; gap: 6px; padding: 3px; }
+.tools .btn { border: 0; padding: 6px 10px; }
+.tools .btn[aria-pressed="true"] { background: rgba(216,178,90,.22); color: var(--gold-hi); font-weight: 500; }
+
+/* ---------- 底部环境栏 ---------- */
+#env { position: fixed; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; bottom: calc(14px + var(--sb)); display: flex; align-items: center; gap: 14px; padding: 8px 14px; max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; }
+#env .time { display: flex; align-items: center; gap: 10px; }
+#env label { font: 600 13px var(--serif); color: var(--muted); letter-spacing: .1em; }
+#timeRange { width: 180px; accent-color: var(--gold); }
+#timeOut { font: 600 14px var(--serif); min-width: 5.5em; font-variant-numeric: tabular-nums; }
+.chips { display: flex; gap: 4px; }
+.chips .btn { padding: 4px 10px; font: 600 13px var(--serif); }
+.sep { width: 1px; height: 22px; background: var(--line); }
+
+/* ---------- 小地图 ---------- */
+#mini { position: fixed; z-index: 10; left: max(16px, var(--sl)); bottom: calc(14px + var(--sb)); width: 172px; height: 172px; padding: 0; overflow: hidden; }
+#mini canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+#mini .btn { position: absolute; right: 6px; bottom: 6px; padding: 2px 8px; font-size: 12px; background: rgba(18,14,12,.75); }
+
+/* ---------- 建筑卡片 ---------- */
+#card { position: fixed; z-index: 20; right: max(16px, var(--sr)); top: calc(64px + var(--st)); width: min(380px, calc(100vw - 32px)); max-height: calc(100vh - 150px - var(--st) - var(--sb)); overflow: auto; padding: 0 0 14px; }
+.plaque-head { position: sticky; top: 0; background: linear-gradient(#24427e, #162b57); border-bottom: 3px solid #c79b45; padding: 14px 44px 12px 18px; }
+.plaque-head h2 { margin: 0; font: 900 26px/1.2 var(--serif); letter-spacing: .14em; color: var(--gold-hi); text-shadow: 0 2px 2px rgba(0,0,0,.4); text-wrap: balance; }
+.plaque-head span { display: block; margin-top: 4px; color: #c9d4ea; font-size: 12px; letter-spacing: .12em; }
+#cardClose { position: absolute; right: 8px; top: 10px; width: 32px; height: 32px; border: 0; background: transparent; color: var(--gold-hi); font-size: 22px; line-height: 1; z-index: 2; }
+#card dl { margin: 14px 18px 0; display: grid; grid-template-columns: 4.2em 1fr; gap: 6px 10px; font-size: 13px; }
+#card dt { color: var(--gold); font: 600 13px var(--serif); letter-spacing: .1em; }
+#card dd { margin: 0; color: var(--paper); }
+#card .txt { margin: 12px 18px 0; line-height: 1.85; }
+#card .story { margin: 12px 18px 0; padding: 10px 12px; background: rgba(184,57,42,.14); border: 1px solid rgba(184,57,42,.4); border-radius: 4px; line-height: 1.8; }
+#card .story::before { content: "掌故"; display: block; font: 700 12px var(--serif); color: #f0a08f; letter-spacing: .2em; margin-bottom: 2px; }
+#card .inside::before { content: "殿内"; color: var(--gold); }
+#card .today { margin: 10px 18px 0; color: var(--muted); font-size: 13px; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 18px 0; }
+
+/* ---------- 侧边面板（索引、设置） ---------- */
+.side { position: fixed; z-index: 21; right: max(16px, var(--sr)); top: calc(64px + var(--st)); width: min(340px, calc(100vw - 32px)); max-height: calc(100vh - 150px - var(--st) - var(--sb)); overflow: auto; padding: 14px 16px; }
+.side h3 { margin: 0 0 10px; font: 900 18px var(--serif); letter-spacing: .14em; color: var(--gold-hi); }
+.side .close { position: absolute; right: 8px; top: 8px; border: 0; background: transparent; color: var(--muted); font-size: 20px; width: 30px; height: 30px; }
+#search { width: 100%; box-sizing: border-box; padding: 8px 10px; background: rgba(0,0,0,.3); color: var(--paper); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+.idx-group h4 { margin: 14px 0 6px; font: 600 13px var(--serif); color: var(--gold); letter-spacing: .14em; }
+.idx-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.idx-list .btn { padding: 4px 10px; font-size: 13px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(216,178,90,.14); }
+.set-row:last-child { border-bottom: 0; }
+.set-row span { font-size: 14px; }
+.set-row small { display: block; color: var(--muted); font-size: 12px; }
+.help { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 12px 0 0; }
+.help kbd { font: 600 12px var(--sans); background: rgba(216,178,90,.15); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; color: var(--paper); }
+
+/* ---------- 漫步 ---------- */
+#crosshair { position: fixed; z-index: 9; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,246,226,.85); box-shadow: 0 0 0 2px rgba(0,0,0,.35); pointer-events: none; }
+#walkHint { position: fixed; z-index: 12; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; padding: 18px 22px; max-width: calc(100vw - 48px); }
+#walkHint h4 { margin: 0 0 8px; font: 900 18px var(--serif); letter-spacing: .14em; color: var(--gold-hi); }
+#walkHint p { margin: 4px 0; color: var(--paper); }
+#walkHint .btn { margin-top: 10px; }
+#joy { position: fixed; z-index: 12; left: calc(28px + var(--sl)); bottom: calc(200px + var(--sb)); width: 120px; height: 120px; border-radius: 50%; background: rgba(24,16,13,.45); border: 1px solid var(--line); touch-action: none; }
+#joy i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: rgba(216,178,90,.6); border: 1px solid var(--gold-hi); }
+#flyBtns { position: fixed; z-index: 12; right: max(20px, var(--sr)); bottom: calc(110px + var(--sb)); display: flex; flex-direction: column; gap: 10px; }
+#flyBtns .btn { width: 54px; height: 54px; border-radius: 50%; background: var(--lacquer); font: 700 15px var(--serif); }
+
+/* ---------- 导览 ---------- */
+#tour { position: fixed; z-index: 15; left: 50%; transform: translateX(-50%); bottom: calc(14px + var(--sb)); width: min(640px, calc(100vw - 32px)); padding: 12px 16px; box-sizing: border-box; }
+#tour .top { display: flex; align-items: baseline; gap: 10px; }
+#tour .step { font: 600 12px var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
+#tour b { font: 900 20px var(--serif); letter-spacing: .14em; color: var(--gold-hi); }
+#tour p { margin: 6px 0 10px; line-height: 1.85; font-size: 14px; }
+#tour .row { display: flex; gap: 8px; flex-wrap: wrap; }
+#tour .prog { height: 2px; background: rgba(216,178,90,.16); margin: 0 0 10px; }
+#tour .prog i { display: block; height: 100%; background: var(--gold); width: 0; }
+
+/* ---------- 标注 ---------- */
+#labels { position: fixed; inset: 0; z-index: 5; pointer-events: none; overflow: hidden; }
+.lbl-name { position: absolute; left: 0; top: 0; display: none; pointer-events: auto; background: none; border: 0; padding: 0; transform-origin: 0 0; white-space: nowrap; }
+.lbl-name span { position: relative; left: -50%; top: -26px; display: inline-block; font: 600 13px var(--serif); letter-spacing: .08em; color: #fff7e6; text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); }
+.lbl-name.major span { font-size: 15px; color: var(--gold-hi); font-weight: 900; }
+.lbl-name i { position: absolute; left: -3px; top: -6px; width: 6px; height: 6px; transform: rotate(45deg); background: var(--gold-hi); box-shadow: 0 0 0 1px rgba(0,0,0,.5); }
+.lbl-pin { position: absolute; left: 0; top: 0; display: none; pointer-events: auto; }
+.lbl-pin .seal { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border: 0; padding: 0; border-radius: 3px; background: var(--vermilion); color: #fff1e0; font: 900 15px/28px var(--serif); box-shadow: inset 0 0 0 2px rgba(255,230,200,.55), 0 2px 6px rgba(0,0,0,.5); }
+.lbl-pin .pin-title { position: absolute; left: 18px; top: -11px; white-space: nowrap; font: 600 13px var(--serif); color: #fff7e6; text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.8); cursor: pointer; }
+.lbl-pin.far .pin-title { display: none; }
+.lbl-pin.open { z-index: 3; }
+.pin-note { position: absolute; left: 18px; top: 16px; width: min(280px, 70vw); padding: 10px 12px; background: #f1e6cf; color: #2a1d14; border-radius: 3px; box-shadow: 0 8px 24px rgba(0,0,0,.45); border-top: 3px solid var(--vermilion); }
+.pin-note b { font: 900 15px var(--serif); letter-spacing: .1em; }
+.pin-note p { margin: 4px 0 0; font-size: 13px; line-height: 1.8; }
+
+#tip { position: fixed; z-index: 16; pointer-events: none; padding: 4px 10px; font: 600 13px var(--serif); background: var(--lacquer-solid); border: 1px solid var(--line); border-radius: 4px; transform: translate(14px, 14px); white-space: nowrap; }
+#toast { position: fixed; z-index: 30; left: 50%; top: calc(70px + var(--st)); transform: translateX(-50%); padding: 10px 16px; max-width: calc(100vw - 48px); text-align: center; line-height: 1.7; }
+
+/* ---------- 全图 ---------- */
+#bigmap { position: fixed; inset: 0; z-index: 40; background: rgba(14,10,8,.94); display: flex; flex-direction: column; padding: calc(12px + var(--st)) max(16px, var(--sr)) calc(12px + var(--sb)) max(16px, var(--sl)); box-sizing: border-box; }
+#bigmap header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+#bigmap h3 { margin: 0; font: 900 18px var(--serif); letter-spacing: .16em; color: var(--gold-hi); }
+#bigmap p { margin: 0; color: var(--muted); font-size: 13px; }
+#bm { flex: 1; width: 100%; min-height: 0; cursor: crosshair; }
+
+/* ---------- 窄屏 ---------- */
+@media (max-width: 760px) {
+  #tr { max-width: calc(100vw - 32px); top: calc(56px + var(--st)); right: max(12px, var(--sr)); }
+  #tl { top: calc(10px + var(--st)); left: max(12px, var(--sl)); }
+  .brand b { font-size: 16px; padding: 6px 8px; }
+  .brand .place { font-size: 14px; }
+  .seg button { padding: 5px 10px; font-size: 13px; }
+  .tools .btn { padding: 5px 8px; font-size: 13px; }
+  #env { bottom: calc(10px + var(--sb)); left: auto; right: max(12px, var(--sr)); transform: none; width: auto; gap: 8px; padding: 6px 10px; max-width: calc(100vw - 150px); }
+  #env.collapsed .chips, #env.collapsed .sep, #env.collapsed #snowBtn { display: none; }
+  #timeRange { width: 110px; }
+  #mini { width: 112px; height: 112px; left: max(12px, var(--sl)); bottom: calc(10px + var(--sb)); }
+  #mini .btn { display: none; }
+  #card, .side { left: max(12px, var(--sl)); right: max(12px, var(--sr)); width: auto; top: auto; bottom: calc(10px + var(--sb)); max-height: 58vh; }
+  #tour { bottom: calc(132px + var(--sb)); }
+  #tour p { font-size: 13px; max-height: 6.6em; overflow: auto; }
+  #joy { bottom: calc(140px + var(--sb)); }
+}
+@media (prefers-reduced-motion: reduce) { #loading { transition: none; } .ld-bar i { transition: none; } }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+</head>
+<body>
+<section id="loading" aria-live="polite">
+  <div class="ld">
+    <div class="ld-plaque" aria-hidden="true">紫禁城</div>
+    <p class="ld-sub">北京故宫 · 三维漫游</p>
+    <div class="ld-bar"><i id="ldFill"></i></div>
+    <p id="ldText">正在加载</p>
+    <p id="ldFact">紫禁城南北长961米，东西宽753米，占地约72万平方米，是世界上现存规模最大的宫殿建筑群。</p>
+    <button id="enterBtn" type="button" hidden>进入紫禁城</button>
+    <p class="ld-note">建筑由代码按真实格局与比例生成，是近似复原，不是照片级扫描。</p>
+  </div>
+</section>
+
+<header id="tl">
+  <div class="brand"><b>紫禁城</b><button type="button" class="place panel" id="placeBtn" title="查看介绍"><span id="placeName">天安门</span><small id="placeArea"></small></button></div>
+</header>
+
+<nav id="tr" aria-label="浏览方式与工具">
+  <div class="seg panel" role="group" aria-label="浏览方式">
+    <button type="button" data-mode="orbit" class="on">鸟瞰</button>
+    <button type="button" data-mode="walk">漫步</button>
+    <button type="button" data-mode="tour">导览</button>
+  </div>
+  <div class="tools panel">
+    <button type="button" class="btn" id="btnIndex" aria-pressed="false">索引</button>
+    <button type="button" class="btn" id="btnKnow" aria-pressed="false">知识</button>
+    <button type="button" class="btn" id="btnEnv" aria-pressed="false" hidden>天时</button>
+    <button type="button" class="btn" id="btnSettings" aria-pressed="false">设置</button>
+  </div>
+</nav>
+
+<div id="env" class="panel">
+  <div class="time"><label for="timeRange">时辰</label><input id="timeRange" type="range" min="4.5" max="23" step="0.05" value="9.5"><output id="timeOut" for="timeRange">09:30</output></div>
+  <div class="sep"></div>
+  <div class="chips" id="seasons" role="group" aria-label="季节">
+    <button type="button" class="btn" data-season="spring">春</button>
+    <button type="button" class="btn" data-season="summer">夏</button>
+    <button type="button" class="btn on" data-season="autumn">秋</button>
+    <button type="button" class="btn" data-season="winter">冬</button>
+  </div>
+  <div class="sep"></div>
+  <button type="button" class="btn" id="snowBtn" aria-pressed="false">落雪</button>
+</div>
+
+<div id="mini" class="panel"><canvas id="mm" aria-label="小地图，点击打开全图"></canvas><button type="button" class="btn" id="mmOpen">全图</button></div>
+
+<aside id="card" class="panel" hidden aria-live="polite">
+  <button type="button" id="cardClose" aria-label="关闭介绍">×</button>
+  <div class="plaque-head"><h2 id="cardName"></h2><span id="cardArea"></span></div>
+  <dl>
+    <dt>年代</dt><dd id="cardEra"></dd>
+    <dt>形制</dt><dd id="cardRoof"></dd>
+    <dt>用途</dt><dd id="cardUse"></dd>
+  </dl>
+  <p class="txt" id="cardText"></p>
+  <p class="story" id="cardStory"></p>
+  <p class="story inside" id="cardInside"></p>
+  <p class="today" id="cardToday"></p>
+  <div class="card-actions">
+    <button type="button" class="btn" id="cardFly">飞过去看看</button>
+    <button type="button" class="btn" id="cardWalk">在这里漫步</button>
+    <button type="button" class="btn" id="cardSpeak">朗读介绍</button>
+  </div>
+</aside>
+
+<aside id="indexPanel" class="panel side" hidden>
+  <button type="button" class="close" data-close="indexPanel" aria-label="关闭">×</button>
+  <h3>建筑索引</h3>
+  <input id="search" type="search" placeholder="搜索：太和殿、珍妃井……" autocomplete="off">
+  <div id="idxGroups"></div>
+</aside>
+
+<aside id="settingsPanel" class="panel side" hidden>
+  <button type="button" class="close" data-close="settingsPanel" aria-label="关闭">×</button>
+  <h3>设置</h3>
+  <div class="set-row"><span>画质<small>流畅模式关闭水面倒影与泛光</small></span><div class="chips"><button type="button" class="btn" data-q="high">高清</button><button type="button" class="btn" data-q="low">流畅</button></div></div>
+  <div class="set-row"><span>古风配乐</span><button type="button" class="btn" id="setMusic" aria-pressed="true">开</button></div>
+  <div class="set-row"><span>环境音<small>风声、鸟鸣、脚步声</small></span><button type="button" class="btn" id="setAmb" aria-pressed="true">开</button></div>
+  <div class="set-row"><span>语音解说<small>导览时朗读解说词</small></span><button type="button" class="btn" id="setVoice" aria-pressed="true">开</button></div>
+  <div class="set-row"><span>建筑名称</span><button type="button" class="btn" id="setNames" aria-pressed="true">显示</button></div>
+  <div class="set-row"><span>游客</span><button type="button" class="btn" id="setPeople" aria-pressed="true">显示</button></div>
+  <p class="help" id="helpText">
+    <b>鸟瞰</b>：拖动旋转，右键或双指平移，滚轮/双指缩放；点击建筑查看介绍。<br>
+    <b>漫步</b>：<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动，鼠标转向，<kbd>Shift</kbd> 快走，<kbd>空格</kbd> 跳，<kbd>F</kbd> 切换飞行（<kbd>E</kbd>/<kbd>Q</kbd> 升降），<kbd>Esc</kbd> 释放鼠标。<br>
+    <b>快捷键</b>：<kbd>1</kbd> 鸟瞰 <kbd>2</kbd> 漫步 <kbd>3</kbd> 导览 <kbd>M</kbd> 全图 <kbd>K</kbd> 知识标注。
+  </p>
+</aside>
+
+<div id="crosshair" hidden></div>
+<div id="walkHint" class="panel" hidden>
+  <h4 id="walkTitle">漫步紫禁城</h4>
+  <p id="walkKeys"></p>
+  <button type="button" class="btn on" id="walkGo">开始</button>
+</div>
+<div id="joy" hidden aria-hidden="true"><i></i></div>
+<div id="flyBtns" hidden><button type="button" class="btn" id="flyUp">升</button><button type="button" class="btn" id="flyDown">降</button><button type="button" class="btn" id="flyToggle">落地</button></div>
+
+<div id="tour" class="panel" hidden>
+  <div class="prog"><i id="tourProg"></i></div>
+  <div class="top"><span class="step" id="tourStep"></span><b id="tourTitle"></b></div>
+  <p id="tourText"></p>
+  <div class="row">
+    <button type="button" class="btn" id="tourPrev">上一站</button>
+    <button type="button" class="btn" id="tourPause">暂停</button>
+    <button type="button" class="btn on" id="tourNext">下一站</button>
+    <button type="button" class="btn" id="tourExit">结束导览</button>
+  </div>
+</div>
+
+<div id="labels"></div>
+<div id="tip" hidden></div>
+<div id="toast" class="panel" hidden></div>
+
+<div id="bigmap" hidden>
+  <header><h3>紫禁城全图</h3><p>点击地图上的任意位置前往</p><button type="button" class="btn" id="bmClose">关闭</button></header>
+  <canvas id="bm"></canvas>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
