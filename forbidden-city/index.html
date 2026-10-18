@@ -74,7 +74,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold-hi); o
 .tools .btn[aria-pressed="true"] { background: rgba(216,178,90,.22); color: var(--gold-hi); font-weight: 500; }
 
 /* ---------- 底部环境栏 ---------- */
-#env { position: fixed; z-index: 10; left: 50%; transform: translateX(-50%); width: max-content; bottom: calc(14px + var(--sb)); display: flex; align-items: center; gap: 14px; padding: 8px 14px; max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; }
+#env { position: fixed; z-index: 10; right: max(16px, var(--sr)); width: max-content; bottom: calc(14px + var(--sb)); display: flex; align-items: center; gap: 14px; padding: 8px 14px; max-width: calc(100vw - 220px); flex-wrap: wrap; justify-content: flex-end; }
 #env .time { display: flex; align-items: center; gap: 10px; }
 #env label { font: 600 13px var(--serif); color: var(--muted); letter-spacing: .1em; }
 #timeRange { width: 180px; accent-color: var(--gold); }

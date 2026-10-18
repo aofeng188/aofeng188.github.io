@@ -8,6 +8,7 @@ export const REG = {
   lamps: [], // 夜景灯笼位置
   interiors: [], // { id, min, max, light }
   vats: [],
+  solids: [], // 实体包围盒 { id, min, max }：相机不能进入，也用于标签遮挡判断
   people: [], // 游客路线
 };
 

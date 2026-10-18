@@ -113,7 +113,8 @@ export class Builder {
   }
 
   /** 四边形（局部坐标，逆时针为正面）。uvs 为 4 个 [u,v]。 */
-  quad(mat, p0, p1, p2, p3, uvs, col = WHITE) {
+  /** colTop：p2、p3 两个顶点使用的颜色（用于自下而上的渐变，模拟檐下阴影） */
+  quad(mat, p0, p1, p2, p3, uvs, col = WHITE, colTop = col) {
     const b = this.buf(mat);
     b.reserve(4, 6);
     const w0 = this.P(...p0), w1 = this.P(...p1), w2 = this.P(...p2), w3 = this.P(...p3);
@@ -124,8 +125,8 @@ export class Builder {
     if (l < 1e-10) { nx = 0; ny = 1; nz = 0; } else { nx /= l; ny /= l; nz /= l; }
     const i0 = b.v(...w0, nx, ny, nz, uvs[0][0], uvs[0][1], col);
     const i1 = b.v(...w1, nx, ny, nz, uvs[1][0], uvs[1][1], col);
-    const i2 = b.v(...w2, nx, ny, nz, uvs[2][0], uvs[2][1], col);
-    const i3 = b.v(...w3, nx, ny, nz, uvs[3][0], uvs[3][1], col);
+    const i2 = b.v(...w2, nx, ny, nz, uvs[2][0], uvs[2][1], colTop);
+    const i3 = b.v(...w3, nx, ny, nz, uvs[3][0], uvs[3][1], colTop);
     b.tri(i0, i1, i2); b.tri(i0, i2, i3);
     this.tris += 2;
   }
@@ -138,6 +139,7 @@ export class Builder {
    */
   box(mat, cx, cy, cz, sx, sy, sz, o = {}) {
     const col = o.col || WHITE;
+    const ct = o.colTop || col;
     const us = o.us || 1;
     const unit = o.uv === 'unit';
     const skip = o.skip || 'b';
@@ -148,19 +150,19 @@ export class Builder {
     const U = (a, b) => unit ? [a, b] : [a * us, b * us];
     // 南面 +z
     if (!skip.includes('s')) this.quad(mat, [x0, y0, z1], [x1, y0, z1], [X1, y1, Z1], [X0, y1, Z1],
-      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(x0, y0), U(x1, y0), U(x1, y1), U(x0, y1)], col);
+      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(x0, y0), U(x1, y0), U(x1, y1), U(x0, y1)], col, ct);
     // 北面 -z
     if (!skip.includes('n')) this.quad(mat, [x1, y0, z0], [x0, y0, z0], [X0, y1, Z0], [X1, y1, Z0],
-      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(-x1, y0), U(-x0, y0), U(-x0, y1), U(-x1, y1)], col);
+      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(-x1, y0), U(-x0, y0), U(-x0, y1), U(-x1, y1)], col, ct);
     // 东面 +x
     if (!skip.includes('e')) this.quad(mat, [x1, y0, z1], [x1, y0, z0], [X1, y1, Z0], [X1, y1, Z1],
-      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(-z1, y0), U(-z0, y0), U(-z0, y1), U(-z1, y1)], col);
+      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(-z1, y0), U(-z0, y0), U(-z0, y1), U(-z1, y1)], col, ct);
     // 西面 -x
     if (!skip.includes('w')) this.quad(mat, [x0, y0, z0], [x0, y0, z1], [X0, y1, Z1], [X0, y1, Z0],
-      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(z0, y0), U(z1, y0), U(z1, y1), U(z0, y1)], col);
+      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(z0, y0), U(z1, y0), U(z1, y1), U(z0, y1)], col, ct);
     // 顶面
     if (!skip.includes('t')) this.quad(mat, [X0, y1, Z1], [X1, y1, Z1], [X1, y1, Z0], [X0, y1, Z0],
-      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(X0, -Z1), U(X1, -Z1), U(X1, -Z0), U(X0, -Z0)], col);
+      unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(X0, -Z1), U(X1, -Z1), U(X1, -Z0), U(X0, -Z0)], ct, ct);
     if (!skip.includes('b')) this.quad(mat, [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1],
       unit ? [[0, 0], [1, 0], [1, 1], [0, 1]] : [U(x0, z0), U(x1, z0), U(x1, z1), U(x0, z1)], col);
   }
@@ -182,7 +184,7 @@ export class Builder {
       const p1 = this.P(cx + ca * r1, y0 + h, cz + sa * r1);
       const u = (i / seg) * (o.uScale || 1);
       b.v(...p0, n[0] / nl, n[1] / nl, n[2] / nl, u, 0, col);
-      b.v(...p1, n[0] / nl, n[1] / nl, n[2] / nl, u, (o.vScale || 1), col);
+      b.v(...p1, n[0] / nl, n[1] / nl, n[2] / nl, u, (o.vScale || 1), o.colTop || col);
     }
     for (let i = 0; i < seg; i++) {
       const a = base + i * 2;

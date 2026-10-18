@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { REG } from '../world/registry.js';
+import { solidAt, clampOrbit } from '../world/solids.js';
 
 const BOUNDS = { x0: -515, x1: 515, z0: -895, z1: 1095 };
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -225,8 +226,16 @@ export class Controls extends EventTarget {
       t.x = THREE.MathUtils.clamp(t.x, BOUNDS.x0 - 200, BOUNDS.x1 + 200);
       t.z = THREE.MathUtils.clamp(t.z, BOUNDS.z0 - 100, BOUNDS.z1 + 100);
       this.orbit.update();
-      const g = this.groundAt(this.camera.position.x, this.camera.position.z);
-      if (this.camera.position.y < g + 2) this.camera.position.y = g + 2;
+      // 相机不进入建筑：沿注视点到相机的射线收放距离
+      const c = this.camera.position;
+      const dx = c.x - t.x, dy = c.y - t.y, dz = c.z - t.z;
+      const dist = Math.hypot(dx, dy, dz);
+      if (dist > 0.01) {
+        const nd = clampOrbit(t.x, t.y, t.z, dx / dist, dy / dist, dz / dist, dist);
+        if (Math.abs(nd - dist) > 0.01) c.set(t.x + dx / dist * nd, t.y + dy / dist * nd, t.z + dz / dist * nd);
+      }
+      const g = this.groundAt(c.x, c.z);
+      if (c.y < g + 2) c.y = g + 2;
     } else if (this.mode === 'walk') this._walk(dt);
     else if (this.mode === 'fly') this._fly(dt);
     this._near();
@@ -283,8 +292,14 @@ export class Controls extends EventTarget {
     const speed = (run ? 70 : 24) * this.speedMul;
     const dir = new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch));
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    this.pos.addScaledVector(dir, f * speed * dt).addScaledVector(right, s * speed * dt);
-    this.pos.y += up * speed * 0.7 * dt;
+    // 飞行也不能钻进建筑：逐轴尝试移动，进入实体的那一轴取消
+    const mv = new THREE.Vector3().addScaledVector(dir, f * speed * dt).addScaledVector(right, s * speed * dt);
+    mv.y += up * speed * 0.7 * dt;
+    const p = this.pos;
+    const stuck = !!solidAt(p.x, p.y, p.z, 0.8); // 已经在实体内（如檐下起飞）时放行，便于飞出来
+    if (stuck || !solidAt(p.x + mv.x, p.y, p.z, 0.8)) p.x += mv.x;
+    if (stuck || !solidAt(p.x, p.y + mv.y, p.z, 0.8)) p.y += mv.y;
+    if (stuck || !solidAt(p.x, p.y, p.z + mv.z, 0.8)) p.z += mv.z;
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, BOUNDS.x0 - 150, BOUNDS.x1 + 150);
     this.pos.z = THREE.MathUtils.clamp(this.pos.z, BOUNDS.z0 - 150, BOUNDS.z1 + 150);
     const g = this.groundAt(this.pos.x, this.pos.z);

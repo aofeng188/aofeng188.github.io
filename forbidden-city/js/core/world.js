@@ -47,7 +47,9 @@ export async function createWorld(renderer, scene, quality, progress = () => {})
   progress(0.6, '铺设地面与水系');
   await tick();
   // 建筑脚下的柔和阴影
-  for (const r of REG.map.rects) if (r.kind === 'hall' || r.kind === 'gate') T.ao(r.x0, r.z0, r.x1, r.z1, 3.5, 0.28);
+  for (const r of REG.map.rects) if (r.kind === 'hall' || r.kind === 'gate') T.ao(r.x0, r.z0, r.x1, r.z1);
+  for (const [x0, z0, x1, z1, , t] of REG.map.walls) T.aoLine(x0, z0, x1, z1, (t || 1.6) + 1.5);
+  T.flushAO(3.5, 0.4);
   const ground = T.build(B);
   scene.add(ground);
   if (ctx.hill) scene.add(ctx.hill);

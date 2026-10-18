@@ -5,7 +5,7 @@ import { enhance } from '../core/materials.js';
 
 // 每个树种：树冠形状、贴图、四季颜色（null 表示落叶）
 export const SPECIES = {
-  cypress: { name: '古柏', crown: 'cone', tex: 'needle', h: [10, 16], r: [2.6, 3.6], trunk: 0x5a4636,
+  cypress: { name: '古柏', crown: 'cone', tex: 'needle', h: [10, 15], r: [2.2, 3.0], trunk: 0x5a4636,
     colors: { spring: 0x3f5a35, summer: 0x34502d, autumn: 0x3b5230, winter: 0x404a33 } },
   pine: { name: '油松', crown: 'oval', tex: 'needle', h: [7, 11], r: [3.4, 4.6], trunk: 0x5c4434,
     colors: { spring: 0x3c5a34, summer: 0x31502c, autumn: 0x39532f, winter: 0x3e4a32 } },
@@ -21,39 +21,84 @@ export const SPECIES = {
     colors: { spring: 0xf6f0e6, summer: 0x5c8a3e, autumn: 0x8a7a40, winter: null } },
 };
 
+/** 树冠轮廓：归一化高度 t（0 底，1 顶）处的半径（树冠半径为 1） */
+const PROFILE = {
+  cone: (t) => 0.06 + 0.94 * Math.pow(Math.sin(Math.PI * Math.pow(0.06 + 0.94 * t, 0.72)), 0.75),
+  round: (t) => Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 2)),
+  oval: (t) => 0.92 * Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 2)),
+  flat: (t) => Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 2)),
+  droop: (t) => 0.55 + 0.45 * Math.sqrt(Math.max(0, 1 - (2 * t - 1) ** 2)),
+};
+
+/**
+ * 树冠几何：叶片面片沿树冠表面朝外排布（避免侧看成一个个椭圆），
+ * 内部加一个深色实心芯填补缝隙；顶点颜色上亮下暗，表现体积。
+ */
 function crownGeometry(kind, seed) {
   let s = seed;
   const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const quads = kind === 'cone' ? 22 : kind === 'droop' ? 20 : 18;
-  const pos = [], nor = [], uv = [], idx = [];
+  const prof = PROFILE[kind] || PROFILE.round;
+  const quads = kind === 'cone' ? 64 : kind === 'droop' ? 54 : 58;
+  const pos = [], nor = [], uv = [], col = [], idx = [];
+  const size = kind === 'droop' ? 0.5 : kind === 'cone' ? 0.42 : 0.52;
   for (let q = 0; q < quads; q++) {
-    // 树冠内随机点（单位尺度：半径 1，高度 0..1 → 由实例缩放）
-    let cx, cy, cz;
+    const t = kind === 'cone' ? Math.pow(r(), 0.85) : 0.08 + r() * 0.86;
     const a = r() * Math.PI * 2;
-    if (kind === 'cone') { cy = Math.pow(r(), 0.8); const rad = (1 - cy) * 0.9 * Math.sqrt(r()); cx = Math.cos(a) * rad; cz = Math.sin(a) * rad; }
-    else if (kind === 'flat') { cy = 0.45 + r() * 0.45; const rad = Math.sqrt(r()) * (1 - Math.abs(cy - 0.75) * 1.2); cx = Math.cos(a) * rad; cz = Math.sin(a) * rad; }
-    else if (kind === 'droop') { cy = 0.3 + r() * 0.65; const rad = 0.4 + Math.sqrt(r()) * 0.6; cx = Math.cos(a) * rad; cz = Math.sin(a) * rad; }
-    else { const u = r() * 2 - 1, th = a, rr = Math.cbrt(r()) * 0.85; const k = kind === 'oval' ? 0.5 : 0.42; cx = Math.sqrt(1 - u * u) * Math.cos(th) * rr; cz = Math.sqrt(1 - u * u) * Math.sin(th) * rr; cy = 0.5 + u * rr * k; }
-    const size = kind === 'droop' ? 0.75 : kind === 'cone' ? 0.6 : 0.72;
-    const yaw = r() * Math.PI, pitch = (r() - 0.5) * (kind === 'droop' ? 0.3 : 1.2);
-    const ux = Math.cos(yaw) * size, uz = Math.sin(yaw) * size;
-    const vx = -Math.sin(yaw) * Math.sin(pitch) * size, vy = Math.cos(pitch) * size * (kind === 'droop' ? 1.6 : 1), vz = Math.cos(yaw) * Math.sin(pitch) * size;
+    const rr = prof(t) * (0.78 + 0.26 * r());
+    const cx = Math.cos(a) * rr, cz = Math.sin(a) * rr, cy = t;
+    // 外法线（近似椭球法线，带一点向上）
+    let nx = Math.cos(a), ny = (t - 0.5) * 1.2 + 0.25, nz = Math.sin(a);
+    const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+    // 与法线垂直的两个切向量
+    let ux = -nz, uy = 0, uz = nx;
+    const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+    let vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+    const roll = (r() - 0.5) * 1.2, cr = Math.cos(roll), sr = Math.sin(roll);
+    const Ux = ux * cr + vx * sr, Uy = uy * cr + vy * sr, Uz = uz * cr + vz * sr;
+    const Vx = vx * cr - ux * sr, Vy = vy * cr - uy * sr, Vz = vz * cr - uz * sr;
+    const sz = size * (0.8 + r() * 0.45), sv = sz * (kind === 'droop' ? 1.7 : 1);
+    const lum = 0.62 + 0.38 * t + (r() - 0.5) * 0.12;
     const base = pos.length / 3;
-    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-    for (const [a1, b1] of corners) {
-      const px = cx + (ux * a1 + vx * b1) / 2, py = cy + (vy * b1) / 2 * (kind === 'cone' ? 0.5 : 0.45), pz = cz + (uz * a1 + vz * b1) / 2;
-      pos.push(px, py, pz);
-      // 球面法线，树冠整体受光柔和
-      const nx = px, ny = (py - 0.45) * 1.4, nz = pz; const l = Math.hypot(nx, ny, nz) || 1;
-      nor.push(nx / l, ny / l + 0.2, nz / l);
-      uv.push((a1 + 1) / 2, (b1 + 1) / 2);
+    for (const [a1, b1] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      pos.push(cx + (Ux * a1 * sz + Vx * b1 * sv) / 2, cy + (Uy * a1 * sz + Vy * b1 * sv) / 2 * 0.62, cz + (Uz * a1 * sz + Vz * b1 * sv) / 2);
+      nor.push(nx, ny, nz);
+      uv.push((a1 + 1) / 2 * 0.94 + 0.06, (b1 + 1) / 2 * 0.94);
+      col.push(lum, lum, lum);
     }
     idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  // 实心芯：低面数的闭合纺锤体（上下收成尖，从树下仰视不会看到空心），贴图取左上角的不透明小块
+  const rings = 5, segs = 9;
+  const coreBase = pos.length / 3;
+  for (let i = 0; i <= rings; i++) {
+    const t = 0.12 + (i / rings) * 0.76;
+    const rr = prof(t) * (kind === 'cone' ? 0.58 : 0.66);
+    for (let j = 0; j <= segs; j++) {
+      const a = (j / segs) * Math.PI * 2;
+      pos.push(Math.cos(a) * rr, t, Math.sin(a) * rr);
+      const ny = (t - 0.5) * 1.2; const l = Math.hypot(1, ny);
+      nor.push(Math.cos(a) / l, ny / l, Math.sin(a) / l);
+      uv.push(0.02, 0.98);
+      const lum = 0.5 + 0.3 * t;
+      col.push(lum, lum, lum);
+    }
+  }
+  for (let i = 0; i < rings; i++) for (let j = 0; j < segs; j++) {
+    const a = coreBase + i * (segs + 1) + j, b = a + segs + 1;
+    idx.push(a, b, a + 1, a + 1, b, b + 1);
+  }
+  const bot = pos.length / 3;
+  pos.push(0, 0.03, 0, 0, 0.97, 0); nor.push(0, -1, 0, 0, 1, 0); uv.push(0.02, 0.98, 0.02, 0.98); col.push(0.42, 0.42, 0.42, 0.8, 0.8, 0.8);
+  const topRing = coreBase + rings * (segs + 1);
+  for (let j = 0; j < segs; j++) {
+    idx.push(bot, coreBase + j, coreBase + j + 1);
+    idx.push(bot + 1, topRing + j + 1, topRing + j);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   return g;
 }
@@ -93,7 +138,7 @@ export class Trees {
       const crownGeo = crownGeometry(sp.crown, spName.length * 131 + 7);
       if (!this.tex[sp.tex]) this.tex[sp.tex] = foliageTexture(sp.tex);
       if (!this.tex.bare) this.tex.bare = foliageTexture('bare');
-      const mat = enhance(new THREE.MeshStandardMaterial({ map: this.tex[sp.tex], alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.85, color: 0xffffff }), { snowAt: 0.35, extraKey: 'leaf' });
+      const mat = enhance(new THREE.MeshStandardMaterial({ map: this.tex[sp.tex], alphaTest: 0.45, alphaToCoverage: true, side: THREE.DoubleSide, roughness: 0.85, color: 0xffffff, vertexColors: true }), { snowAt: 0.35, extraKey: 'leaf' });
       const crown = new THREE.InstancedMesh(crownGeo, mat, arr.length);
       const trunk = new THREE.InstancedMesh(trunkGeo, trunkMat, arr.length);
       crown.castShadow = true; crown.receiveShadow = true;
@@ -103,11 +148,11 @@ export class Trees {
       arr.forEach((t, i) => {
         const h = (sp.h[0] + r() * (sp.h[1] - sp.h[0])) * t.scale;
         const rad = (sp.r[0] + r() * (sp.r[1] - sp.r[0])) * t.scale;
-        const trunkH = sp.crown === 'cone' ? h * 0.25 : sp.crown === 'droop' ? h * 0.35 : spName === 'pine' ? h * 0.28 : h * 0.38;
+        const trunkH = sp.crown === 'cone' ? h * 0.32 : sp.crown === 'droop' ? h * 0.35 : spName === 'pine' ? h * 0.28 : h * 0.38;
         e.set(0, r() * Math.PI * 2, 0); q.setFromEuler(e);
         m.compose(new THREE.Vector3(t.x, t.y + trunkH * 0.82, t.z), q, new THREE.Vector3(rad, h - trunkH * 0.82, rad));
         crown.setMatrixAt(i, m);
-        m.compose(new THREE.Vector3(t.x, t.y - 0.2, t.z), q, new THREE.Vector3(rad * 0.22 + 0.4, trunkH + 0.6, rad * 0.22 + 0.4));
+        m.compose(new THREE.Vector3(t.x, t.y - 0.2, t.z), q, new THREE.Vector3(rad * 0.1 + 0.22, trunkH + 0.9, rad * 0.1 + 0.22));
         trunk.setMatrixAt(i, m);
         trunk.setColorAt(i, tc);
         t.var = 0.85 + r() * 0.3;

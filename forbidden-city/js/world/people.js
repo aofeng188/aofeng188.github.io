@@ -1,29 +1,36 @@
-// 游客：简洁人形（实例化），沿预设路线缓慢行走，偶尔驻足拍照。
+// 游客：简洁的小人（躯干、双腿、双臂、头、头发），沿预设路线行走，迈腿摆臂，偶尔驻足。
 import * as THREE from 'three';
 import { REG } from './registry.js';
 
-const CLOTHES = [0x2f4a6d, 0xb33a3a, 0xe8e2d4, 0x3c3c40, 0x6b7f4a, 0xd98c3a, 0x8a5a9a, 0x2f6f7a, 0xc9a24a, 0x5a3a2a, 0xf0f0ec, 0x1f2a44];
-const PANTS = [0x2a2c33, 0x3a4a6a, 0x5a5048, 0x1e1e22, 0x7a6a58];
+const CLOTHES = [0x2f4a6d, 0xb33a3a, 0xe8e2d4, 0x3c3c40, 0x6b7f4a, 0xd98c3a, 0x8a5a9a, 0x2f6f7a, 0xc9a24a, 0x5a3a2a, 0xf0f0ec, 0x1f2a44, 0x9a3b5a, 0x4a6a8a];
+const PANTS = [0x2a2c33, 0x3a4a6a, 0x5a5048, 0x1e1e22, 0x7a6a58, 0x3d4652];
+const SKIN = [0xe2bf9a, 0xd8b088, 0xc99d74, 0xe8c8a6];
+const HAIR = [0x1e1a17, 0x2a211c, 0x3a2b20, 0x14110f, 0x6a5a4a];
+
+const HIP = 0.86, SHOULDER = 1.38;
 
 export class People {
   constructor(scene, count) {
     this.scene = scene;
     this.count = count;
     this.list = [];
+    this.meshes = [];
   }
   build() {
     const routes = REG.people.map((r) => (r.pts ? r : { pts: r, w: 6 }));
     if (!routes.length) return;
     let s = 4242;
     const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
-    const body = new THREE.CylinderGeometry(0.2, 0.17, 0.75, 8).translate(0, 1.12, 0);
-    const legs = new THREE.CylinderGeometry(0.15, 0.12, 0.78, 6).translate(0, 0.39, 0);
-    const head = new THREE.SphereGeometry(0.13, 10, 8).translate(0, 1.66, 0);
+    // 部件几何（单位：米，原点在脚下中心；四肢以关节为原点）
+    const torso = new THREE.CylinderGeometry(0.17, 0.15, SHOULDER - HIP + 0.06, 8).translate(0, (HIP + SHOULDER) / 2, 0);
+    torso.scale(1, 1, 0.68);
+    const leg = new THREE.CylinderGeometry(0.075, 0.06, HIP, 6).translate(0, -HIP / 2, 0);
+    const arm = new THREE.CylinderGeometry(0.05, 0.042, 0.58, 6).translate(0, -0.29, 0);
+    const head = new THREE.SphereGeometry(0.11, 10, 8).scale(0.9, 1.05, 0.95).translate(0, SHOULDER + 0.17, 0);
+    const hair = new THREE.SphereGeometry(0.118, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55).translate(0, SHOULDER + 0.19, -0.01);
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.85 });
-    this.body = new THREE.InstancedMesh(body, mat, this.count);
-    this.legs = new THREE.InstancedMesh(legs, mat, this.count);
-    this.head = new THREE.InstancedMesh(head, mat, this.count);
-    for (const m of [this.body, this.legs, this.head]) { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; this.scene.add(m); }
+    const mk = (g) => { const m = new THREE.InstancedMesh(g, mat, this.count); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; this.scene.add(m); this.meshes.push(m); return m; };
+    this.torso = mk(torso); this.legL = mk(leg); this.legR = mk(leg); this.armL = mk(arm); this.armR = mk(arm); this.head = mk(head); this.hair = mk(hair);
     const c = new THREE.Color();
     // 按路线长度分配人数
     const lens = routes.map(({ pts: p }) => { let L = 0; for (let i = 1; i < p.length; i++) L += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); return L; });
@@ -31,13 +38,18 @@ export class People {
     for (let i = 0; i < this.count; i++) {
       let pick = r() * total, ri = 0;
       while (pick > lens[ri] && ri < routes.length - 1) { pick -= lens[ri]; ri++; }
-      const p = { route: routes[ri].pts, len: Math.max(1, lens[ri]), d: pick, dir: r() < 0.5 ? 1 : -1, speed: 0.9 + r() * 0.5, off: (r() - 0.5) * routes[ri].w, pause: 0, phase: r() * 10, h: 0.92 + r() * 0.16, x: 0, z: 0, y: 0, yaw: 0 };
+      const p = { route: routes[ri].pts, len: Math.max(1, lens[ri]), d: pick, dir: r() < 0.5 ? 1 : -1, speed: 0.9 + r() * 0.45, off: (r() - 0.5) * routes[ri].w, pause: 0, phase: r() * 10, h: 0.9 + r() * 0.16, x: 0, z: 0, y: 0, yaw: 0 };
       this.list.push(p);
-      this.body.setColorAt(i, c.setHex(CLOTHES[Math.floor(r() * CLOTHES.length)]));
-      this.legs.setColorAt(i, c.setHex(PANTS[Math.floor(r() * PANTS.length)]));
-      this.head.setColorAt(i, c.setHex(r() < 0.7 ? 0x2a211c : 0xd8b48e));
+      const shirt = CLOTHES[Math.floor(r() * CLOTHES.length)];
+      const skin = SKIN[Math.floor(r() * SKIN.length)];
+      this.torso.setColorAt(i, c.setHex(shirt));
+      this.armL.setColorAt(i, c.setHex(r() < 0.5 ? shirt : skin)); this.armR.setColorAt(i, c);
+      const pants = PANTS[Math.floor(r() * PANTS.length)];
+      this.legL.setColorAt(i, c.setHex(pants)); this.legR.setColorAt(i, c);
+      this.head.setColorAt(i, c.setHex(skin));
+      this.hair.setColorAt(i, c.setHex(HAIR[Math.floor(r() * HAIR.length)]));
     }
-    this.m = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.sc = new THREE.Vector3();
+    this.m = new THREE.Matrix4(); this.m2 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.sc = new THREE.Vector3();
     this.update(0);
   }
   _pos(p) {
@@ -55,9 +67,15 @@ export class People {
     }
     return [R[0][0], R[0][1], 0];
   }
+  _limb(mesh, i, base, x, y, swing) {
+    this.m2.makeRotationX(swing).setPosition(x, y, 0);
+    this.m.multiplyMatrices(base, this.m2);
+    mesh.setMatrixAt(i, this.m);
+  }
   update(dt) {
-    if (!this.body) return;
+    if (!this.torso) return;
     const col = REG.col;
+    const base = new THREE.Matrix4();
     for (let i = 0; i < this.list.length; i++) {
       const p = this.list[i];
       if (p.pause > 0) p.pause -= dt;
@@ -71,18 +89,21 @@ export class People {
       let y = col ? col.get(x, z) : 0;
       if (y === null) y = p.y;
       p.x = x; p.z = z; p.y += (y - p.y) * Math.min(1, dt * 8 + (dt === 0 ? 1 : 0)); p.yaw = yaw;
-      p.phase += dt * p.speed * 5.5 * (p.pause > 0 ? 0 : 1);
-      const bob = p.pause > 0 ? 0 : Math.abs(Math.sin(p.phase)) * 0.05;
+      const walking = p.pause <= 0;
+      if (walking) p.phase += dt * p.speed * 5.2;
+      const sw = walking ? Math.sin(p.phase) * 0.5 : 0;
+      const bob = walking ? Math.abs(Math.cos(p.phase)) * 0.035 : 0;
       this.q.setFromAxisAngle(this.v.set(0, 1, 0), yaw);
-      this.sc.set(1, p.h, 1);
-      this.m.compose(this.v.set(x, p.y + bob, z), this.q, this.sc);
-      this.body.setMatrixAt(i, this.m); this.head.setMatrixAt(i, this.m);
-      this.sc.set(1, p.h * (1 - (p.pause > 0 ? 0 : Math.abs(Math.sin(p.phase)) * 0.06)), 1);
-      this.m.compose(this.v.set(x, p.y, z), this.q, this.sc);
-      this.legs.setMatrixAt(i, this.m);
+      base.compose(this.v.set(x, p.y + bob, z), this.q, this.sc.set(p.h, p.h, p.h));
+      this.torso.setMatrixAt(i, base); this.head.setMatrixAt(i, base); this.hair.setMatrixAt(i, base);
+      this._limb(this.legL, i, base, -0.085, HIP, sw);
+      this._limb(this.legR, i, base, 0.085, HIP, -sw);
+      this._limb(this.armL, i, base, -0.22, SHOULDER - 0.02, -sw * 0.8);
+      this._limb(this.armR, i, base, 0.22, SHOULDER - 0.02, sw * 0.8);
     }
-    this.body.instanceMatrix.needsUpdate = true; this.legs.instanceMatrix.needsUpdate = true; this.head.instanceMatrix.needsUpdate = true;
+    for (const m of this.meshes) m.instanceMatrix.needsUpdate = true;
   }
+  setVisible(v) { for (const m of this.meshes) m.visible = v; }
   /** 离某点最近的游客数量（用于人声环境音） */
   near(x, z, r) {
     let n = 0;

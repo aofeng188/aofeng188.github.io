@@ -50,15 +50,33 @@ export class Terrain {
     pts.forEach(([x, z], i) => { const a = (x - this.b.x0) * k, b = (z - this.b.z0) * k; i ? this.gctx.lineTo(a, b) : this.gctx.moveTo(a, b); });
     this.gctx.closePath(); this.gctx.fill();
   }
-  /** 建筑脚下的柔和阴影（假环境光遮蔽） */
-  ao(x0, z0, x1, z1, r = 3, k = 0.35) {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.filter = `blur(${Math.max(1, r * this.s)}px)`;
-    ctx.globalAlpha = k; ctx.fillStyle = '#000';
+  /** 建筑脚下与墙脚的柔和阴影：先画在单独图层，最后统一模糊合成 */
+  _aoLayer() {
+    if (!this.aoC) {
+      this.aoC = document.createElement('canvas'); this.aoC.width = this.W; this.aoC.height = this.H;
+      this.aoX = this.aoC.getContext('2d'); this.aoX.fillStyle = '#000'; this.aoX.strokeStyle = '#000';
+    }
+    return this.aoX;
+  }
+  ao(x0, z0, x1, z1) {
+    const ctx = this._aoLayer();
     const [a, b] = this.P(Math.min(x0, x1), Math.min(z0, z1)), [c, d] = this.P(Math.max(x0, x1), Math.max(z0, z1));
     ctx.fillRect(a, b, c - a, d - b);
-    ctx.restore();
+  }
+  aoLine(x0, z0, x1, z1, w) {
+    const ctx = this._aoLayer();
+    ctx.lineWidth = w * this.s; ctx.lineCap = 'butt';
+    const [a, b] = this.P(x0, z0), [c, d] = this.P(x1, z1);
+    ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, d); ctx.stroke();
+  }
+  flushAO(r = 4, k = 0.36) {
+    if (!this.aoC) return;
+    this.ctx.save();
+    this.ctx.filter = `blur(${Math.max(1, r * this.s)}px)`;
+    this.ctx.globalAlpha = k;
+    this.ctx.drawImage(this.aoC, 0, 0);
+    this.ctx.restore();
+    this.aoC = null; this.aoX = null;
   }
   addWater(pts) { this.water.push(pts); if (REG.col) REG.col.poly(pts); }
 
@@ -101,6 +119,10 @@ export class Terrain {
   vec3 dd = texture2D(tDetail, vFcWorld.xz / 3.0).rgb;
   float far = smoothstep(120.0, 600.0, length(vFcWorld - cameraPosition));
   vec3 det = mix(bd * 1.08, vec3(0.95), far);
+  // 大尺度的斑驳：旧砖新砖、雨水痕迹
+  float macro = (texture2D(tDetail, vFcWorld.xz / 53.0).r - 0.72) / 0.28;
+  float macro2 = (texture2D(tDetail, vFcWorld.zx / 17.0 + 0.37).r - 0.72) / 0.28;
+  diffuseColor.rgb *= 0.84 + 0.2 * macro + 0.08 * macro2;
   diffuseColor.rgb *= mix(det, dd * 1.1, gm);
   diffuseColor.rgb = mix(diffuseColor.rgb, uGrass * (0.75 + 0.5 * dd.r) * (0.6 + 0.4 * texture2D(map, vMapUv).g * 2.0), gm * 0.85);
 }`);

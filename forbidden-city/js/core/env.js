@@ -18,7 +18,7 @@ export class Environment {
     const sky = new Sky();
     sky.scale.setScalar(9000);
     // 天空亮度单独压低，避免在 ACES 色调映射下发白
-    for (const m of [sky.material]) m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <tonemapping_fragment>', 'gl_FragColor.rgb *= 0.5;\n#include <tonemapping_fragment>'); };
+    for (const m of [sky.material]) m.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <tonemapping_fragment>', 'gl_FragColor.rgb *= 0.62;\n#include <tonemapping_fragment>'); };
     sky.material.depthWrite = false;
     sky.renderOrder = -10;
     scene.add(sky);
@@ -167,9 +167,9 @@ export class Environment {
     const sunCol = new THREE.Color().setRGB(1, 0.96 - warm * 0.32, 0.9 - warm * 0.55);
     const dayI = smooth(-2, 12, el);
     this.sun.color.copy(sunCol);
-    this.sun.intensity = (3.7 * dayI) * (1 - snowy * 0.62) + night * 0.9;
+    this.sun.intensity = (4.3 * dayI) * (1 - snowy * 0.62) + night * 0.9;
     if (night > 0.5) this.sun.color.setRGB(0.62, 0.72, 1.0);
-    this.hemi.intensity = 0.24 + dayI * 0.36 + snowy * 0.4 + night * 0.22;
+    this.hemi.intensity = 0.2 + dayI * 0.26 + snowy * 0.45 + night * 0.22;
     this.hemi.color.setRGB(0.72 + warm * 0.15, 0.8, 0.95).lerp(new THREE.Color(0.32, 0.4, 0.66), night);
     this.hemi.groundColor.setRGB(0.55, 0.48, 0.4).lerp(new THREE.Color(0.08, 0.08, 0.1), night);
 
@@ -183,13 +183,13 @@ export class Environment {
     fc.lerp(nightC, night);
     fc.lerp(new THREE.Color(0.8, 0.82, 0.86).multiplyScalar(1 - night * 0.85), snowy * 0.85);
     this.scene.fog.color.copy(fc);
-    this.scene.fog.density = 0.00028 + snowy * 0.0016 + night * 0.00015;
+    this.scene.fog.density = 0.00036 + snowy * 0.0016 + night * 0.00015;
     this.stars.material.uniforms.uA.value = night * (1 - snowy);
     this.moon.visible = night > 0.05 && snowy < 0.6;
     this.moon.material.opacity = night;
     this.M.lamp.emissiveIntensity = 0.25 + night * 3.2;
     this.M.lampWarm.emissiveIntensity = night * 2.5;
-    this.renderer.toneMappingExposure = 0.62 + dayI * 0.12 + night * 0.25;
+    this.renderer.toneMappingExposure = 0.56 + dayI * 0.02 + night * 0.3;
     this.envDirty = true;
   }
 
@@ -237,7 +237,7 @@ export class Environment {
       if (this.envRT) this.envRT.dispose();
       this.envRT = rt;
       this.scene.environment = rt.texture;
-      this.scene.environmentIntensity = (0.35 + (1 - this.night) * 0.3) * (1 - this.night * 0.7);
+      this.scene.environmentIntensity = (0.3 + (1 - this.night) * 0.25) * (1 - this.night * 0.7);
     }
   }
 }

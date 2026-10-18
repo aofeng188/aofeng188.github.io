@@ -87,16 +87,20 @@ export function createMaterials(quality) {
   const plaster = T.plasterTexture();
   const marble = T.marbleTexture();
   const brick = T.brickTexture({ bw: 64, bh: 32, mortar: 2, lo: 0.5, hi: 0.72, seed: 43 });
+  marble.repeat.set(0.38, 0.38); // 石块约 0.7 米
+  brick.repeat.set(0.32, 0.32); // 城砖约 0.4 米
   const floor = T.brickTexture({ bw: 128, bh: 128, mortar: 2, lo: 0.22, hi: 0.3, seed: 47, stagger: false });
 
   const std = (p) => new THREE.MeshStandardMaterial(p);
   const M = {};
   M.roof = enhance(std({ map: tile.map, normalMap: tile.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), vertexColors: true, roughness: 0.32, metalness: 0.05 }), { snowAt: 0.28 });
   M.glaze = enhance(std({ vertexColors: true, roughness: 0.3, metalness: 0.05 }), { snowAt: 0.4 });
-  M.wall = enhance(std({ map: plaster, vertexColors: true, roughness: 0.92 }), { night: 0.55 });
+  M.eave = enhance(std({ map: T.eaveTexture(), vertexColors: true, roughness: 0.32, metalness: 0.05 }), { snow: false });
+  M.ridge = enhance(std({ map: T.ridgeTexture(), vertexColors: true, roughness: 0.34, metalness: 0.05 }), { snowAt: 0.45 });
+  M.wall = enhance(std({ map: plaster, vertexColors: true, roughness: 0.95, envMapIntensity: 0.6 }), { night: 0.55 });
   M.brick = enhance(std({ map: brick, vertexColors: true, roughness: 0.95 }), { night: 0.4 });
-  M.marble = enhance(std({ map: marble, vertexColors: true, roughness: 0.62 }), { night: 0.45 });
-  M.paint = enhance(std({ vertexColors: true, roughness: 0.5 }), { night: 0.5 });
+  M.marble = enhance(std({ map: marble, vertexColors: true, roughness: 0.75, envMapIntensity: 0.6 }), { night: 0.45 });
+  M.paint = enhance(std({ vertexColors: true, roughness: 0.62 }), { night: 0.5 });
   M.lattice = enhance(std({ map: T.latticeTexture(true), vertexColors: true, roughness: 0.6 }), { night: 0.6, snow: false });
   M.lattice2 = enhance(std({ map: T.latticeTexture(false), vertexColors: true, roughness: 0.65 }), { night: 0.5, snow: false });
   M.hexi = enhance(std({ map: T.caihuaTexture('hexi'), vertexColors: true, roughness: 0.55 }), { night: 0.8, snow: false });
@@ -125,8 +129,8 @@ export function createMaterials(quality) {
 
 // 常用颜色（sRGB）
 export const C = {
-  yellow: 0xe0a422, // 黄琉璃
-  yellowDark: 0xb07c14,
+  yellow: 0xd39628, // 黄琉璃
+  yellowDark: 0xa8741c,
   green: 0x2f7d4a, // 绿琉璃
   greenDark: 0x1f5a35,
   black: 0x2a2a2e, // 黑琉璃
@@ -134,11 +138,11 @@ export const C = {
   greyDark: 0x4f5156,
   blue: 0x2b4f8f,
   red: 0xa8321f, // 朱红
-  redWall: 0x9a2e22, // 宫墙红
-  redCity: 0x8a3a2c, // 城墙赭红
-  lacquer: 0x9e2216, // 柱子朱漆
-  marble: 0xf0ece2,
-  stone: 0xb9b6ae,
+  redWall: 0x8c2a1f, // 宫墙红
+  redCity: 0x7c3226, // 城墙赭红
+  lacquer: 0x8e1d13, // 柱子朱漆
+  marble: 0xc2bdb1,
+  stone: 0xa7a39a,
   greyBrick: 0x8e9094,
   pave: 0xb3b0aa,
   gold: 0xf2c25a,

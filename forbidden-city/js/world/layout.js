@@ -12,7 +12,7 @@ import { Z, SANTAI_H, QQ_H } from './coords.js';
 const PI = Math.PI, E = -PI / 2, W_ = PI / 2; // 朝西 / 朝东
 
 // 区域底色
-const PAVE = 0xa9a59c, PAVE2 = 0xb3afa6, YULU = 0xd4cfc3, SOIL = 0x8a8068, ROAD = 0x55565a, WALK = 0x9b968c, LANE = 0xa29e95;
+const PAVE = 0x98948b, PAVE2 = 0xa39f96, YULU = 0xbdb7aa, SOIL = 0x8a8068, ROAD = 0x55565a, WALK = 0x9b968c, LANE = 0xa29e95;
 
 export function buildWorld(ctx) {
   const { B, T, TR, PL, SG } = ctx;
@@ -56,7 +56,7 @@ export function buildWorld(ctx) {
   for (let x = -190; x <= 190; x += 10) outerPts.push([x, 984 + 9 * (1 - (x / 190) ** 2)]);
   T.addWater(strokePoly(outerPts, 9));
   // 园中小池
-  const ponds = [[47, 63, 815, 829], [-63, -47, 815, 829]].map(([a, b, s0, s1]) => [[a, Z(s0)], [b, Z(s0)], [b, Z(s1)], [a, Z(s1)]]);
+  const ponds = [[43, 59, 815, 829], [-59, -43, 815, 829]].map(([a, b, s0, s1]) => [[a, Z(s0)], [b, Z(s0)], [b, Z(s1)], [a, Z(s1)]]);
   ponds.push([[-284, Z(418)], [-256, Z(418)], [-256, Z(436)], [-284, Z(436)]]);
   for (const p of ponds) T.addWater(p);
   out.water = T.water;
@@ -341,20 +341,19 @@ export function buildWorld(ctx) {
   // ================= 御花园 =================
   // 东一长街、西一长街经琼苑东门、西门进入御花园
   for (const sx of [1, -1]) {
-    wallGate(B, sx * 64, Z(806), 0, { w: 3, kind: 'glazed', wallH: 6.5 });
-    palaceWall(B, sx * 66.8, Z(806), sx * 71, Z(806));
+    wallGate(B, sx * 63.6, Z(806), 0, { w: 3, kind: 'glazed', wallH: 6.5 });
   }
-  palaceWall(B, -71, Z(806), -71, Z(905)); palaceWall(B, 71, Z(806), 71, Z(905));
-  palaceWall(B, -71, Z(905), -9, Z(905)); palaceWall(B, 9, Z(905), 71, Z(905));
+  // 东西两侧借用东六宫、乾东五所（及西侧对应院落）的院墙，园墙只补北面
+  palaceWall(B, -66, Z(905), -9, Z(905)); palaceWall(B, 9, Z(905), 66, Z(905));
   hall(B, { x: 0, z: Z(905), W: 15, D: 7, bays: 3, colH: 4, roof: 'xieshan', front: 'gate', base: { h: 0.8, stairs: [{ side: 'f', w: 4 }, { side: 'b', w: 4 }] } });
-  gardenGround(T, -70, Z(905), 70, Z(807));
+  gardenGround(T, -65, Z(905), 65, Z(807));
   compound(B, { x0: -22, z0: Z(886), x1: 22, z1: Z(838), h: 4.5, t: 1.2, gates: [{ side: 's', at: 0, w: 3.5, kind: 'glazed' }] });
   hall(B, { x: 0, z: Z(864), W: 22, D: 14, bays: 5, dBays: 3, colH: 4.6, double: true, roof: 'luding', beasts: 5, base: { h: 1.4, rail: true, stairs: [{ side: 'f', w: 5 }] }, plaque: PL['钦安殿'], plaqueW: 3, id: 'qinandian' });
   for (const sx of [1, -1]) {
     hall(B, { x: sx * 45, z: Z(846), W: 9, D: 9, bays: 3, dBays: 3, colH: 3.6, double: true, roof: 'round', front: 'open', caihua: 'su', dougong: false, base: { h: 1.0, rail: false, stairs: [{ side: 'f', w: 3 }, { side: 'b', w: 3 }, { side: 'l', w: 3 }, { side: 'r', w: 3 }] }, id: 'wanchunting' });
-    pavilion(B, { x: sx * 55, z: Z(822), W: 6, D: 6, bays: 1, dBays: 1, colH: 3.2, roof: 'cuanjian', base: { h: 0.6, stairs: [] } });
+    pavilion(B, { x: sx * 51, z: Z(822), W: 6, D: 6, bays: 1, dBays: 1, colH: 3.2, roof: 'cuanjian', base: { h: 0.6, stairs: [] } });
     wfill(B, -6, -4, 6, 4, 0.6);
-    hall(B, { x: sx * 62, z: Z(860), rot: sx > 0 ? E : W_, W: 15, D: 8, bays: 5, colH: 3.6, double: sx < 0, roof: 'xieshan', caihua: 'su', beasts: 3, base: { h: 0.6, stairs: [{ side: 'f', w: 3 }] } });
+    hall(B, { x: sx * 56, z: Z(862), rot: sx > 0 ? E : W_, W: 15, D: 8, bays: 5, colH: 3.6, double: sx < 0, roof: 'xieshan', caihua: 'su', beasts: 3, base: { h: 0.6, stairs: [{ side: 'f', w: 3 }] } });
   }
   // 堆秀山与御景亭
   rockery(B, 42, Z(893), 10, 9);
@@ -366,16 +365,17 @@ export function buildWorld(ctx) {
     const s = 480.5 - z;
     if (Math.abs(x) < 25 && s > 834 && s < 890) return false;
     if (Math.abs(Math.abs(x) - 45) < 8 && Math.abs(s - 846) < 8) return false;
-    if (Math.abs(Math.abs(x) - 55) < 10 && Math.abs(s - 822) < 9) return false;
-    if (Math.abs(Math.abs(x) - 62) < 7) return false;
+    if (Math.abs(Math.abs(x) - 51) < 10 && Math.abs(s - 822) < 9) return false;
+    if (Math.abs(Math.abs(x) - 56) < 7 && s > 845) return false;
+    if (Math.abs(x) > 58) return false;
     if (Math.abs(Math.abs(x) - 42) < 9 && s > 883) return false;
     if (Math.abs(x) < 5) return false;
     return true;
   };
-  TR.scatter((r) => r < 0.75 ? 'cypress' : r < 0.88 ? 'crabapple' : 'magnolia', -68, Z(903), 68, Z(809), 70, 0, gardenFree, 21);
+  TR.scatter((r) => r < 0.75 ? 'cypress' : r < 0.88 ? 'crabapple' : 'magnolia', -64, Z(903), 64, Z(809), 66, 0, gardenFree, 21);
   sg('yuhuayuan', 10, Z(812), 0);
   setAnchor('yuhuayuan', 0, 2, Z(856), 60, { top: 6, base: 0 });
-  REG.picks.push({ id: 'yuhuayuan', min: [-70, 0, Z(905)], max: [70, 1.2, Z(807)] });
+  REG.picks.push({ id: 'yuhuayuan', min: [-65, 0, Z(905)], max: [65, 1.2, Z(807)] });
   sg('qinandian', 12, Z(838), 0);
 
   // ================= 神武门 =================
@@ -417,8 +417,8 @@ export function buildWorld(ctx) {
     { pts: [[40, -135], [40, -320]], w: 8 },
     { pts: [[-40, -135], [-40, -320]], w: 8 },
     { pts: [[0, -164], [0, -166]], w: 30 },
-    { pts: [[63, -115], [63, -420]], w: 3 },
-    { pts: [[-63, -115], [-63, -420]], w: 3 },
+    { pts: [[63.6, -115], [63.6, -335], [60, -350], [60, -410]], w: 1.6 },
+    { pts: [[-63.6, -115], [-63.6, -335], [-60, -350], [-60, -410]], w: 1.6 },
     { pts: [[-50, -335], [50, -335], [50, -415], [-50, -415], [-50, -335]], w: 4 },
     { pts: [[0, -430], [0, -470]], w: 30 },
     { pts: [[303, 46], [303, -18]], w: 8 },
@@ -481,7 +481,7 @@ function buildEast(ctx, out, sg) {
     rowHouse(B, { x: cx, z: Z(858), W: 20, D: 8, bays: 5, colH: 3.4, roof: 'xieshan', base: { h: 0.6, stairs: [{ side: 'f', w: 3 }] } });
     rowHouse(B, { x: cx, z: Z(888), W: 20, D: 7, bays: 5, colH: 3.2 });
   }
-  T.rect(60, Z(594), 66, Z(908), LANE); T.rect(132, Z(594), 138, Z(908), LANE);
+  T.rect(60, Z(594), 66, Z(806), LANE); T.rect(132, Z(594), 138, Z(908), LANE);
 
   // ================= 宁寿宫区 =================
   const nx = 303;
@@ -612,7 +612,7 @@ function buildWest(ctx, out, sg) {
     hall(B, { x: cx, z: Z(862), W: 24, D: 9, bays: 5, colH: 3.8, roof: 'xieshan', beasts: 3, base: { h: 0.7, stairs: [{ side: 'f', w: 3 }] } });
     rowHouse(B, { x: cx, z: Z(890), W: 24, D: 7, bays: 5, colH: 3.2 });
   }
-  T.rect(-66, Z(594), -60, Z(908), LANE); T.rect(-138, Z(594), -132, Z(908), LANE);
+  T.rect(-66, Z(594), -60, Z(806), LANE); T.rect(-138, Z(594), -132, Z(908), LANE);
 }
 
 // ---------------------------------------------------------------------------
@@ -773,9 +773,9 @@ function terraceTier(B, secs, y0, h, k, o = {}) {
   for (const [hx, s0, s1] of secs) {
     B.at(0, y0, Z((s0 + s1) / 2), 0);
     const hz = (s1 - s0) / 2;
-    B.box('marble', 0, 0, 0, hx * 2 + 0.3, h * 0.2, hz * 2 + 0.3, { col: rgb(C.marble) });
-    B.box('marble', 0, h * 0.2, 0, hx * 2 - 0.3, h * 0.55, hz * 2 - 0.3, { col: rgb(C.marble, 0.93), skip: 'b' });
-    B.box('marble', 0, h * 0.75, 0, hx * 2 + 0.15, h * 0.25, hz * 2 + 0.15, { col: rgb(C.marble), skip: 'b' });
+    B.box('marble', 0, 0, 0, hx * 2 + 0.3, h * 0.2, hz * 2 + 0.3, { col: rgb(C.marble, 0.62), colTop: rgb(C.marble, 0.8) });
+    B.box('marble', 0, h * 0.2, 0, hx * 2 - 0.3, h * 0.55, hz * 2 - 0.3, { col: rgb(C.marble, 0.68), colTop: rgb(C.marble, 0.8), skip: 'b' });
+    B.box('marble', 0, h * 0.75, 0, hx * 2 + 0.15, h * 0.25, hz * 2 + 0.15, { col: rgb(C.marble, 0.88), colTop: rgb(C.marble), skip: 'b' });
     wfill(B, -hx, -hz, hx, hz, h);
   }
   B.at(0, 0, 0, 0);

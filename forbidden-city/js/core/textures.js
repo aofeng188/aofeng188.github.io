@@ -78,7 +78,7 @@ export function tileTextures() {
   const rand = rng(11);
   const img = ctx.createImageData(W, H), nimg = nctx.createImageData(W, H);
   const rowVar = [];
-  for (let r = 0; r < 8; r++) rowVar.push([0.9 + rand() * 0.2, 0.9 + rand() * 0.2]);
+  for (let r = 0; r < 8; r++) rowVar.push([0.8 + rand() * 0.32, 0.8 + rand() * 0.32]);
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const col = Math.floor(x / 128), lx = (x % 128) / 128; // 0..1 一垄
@@ -98,7 +98,7 @@ export function tileTextures() {
       } else {
         // 板瓦：凹沟
         const t = lx < 0.5 ? lx / 0.16 : (1 - lx) / 0.16; // 0 边缘 → 1 筒瓦边
-        v = 0.36 + 0.12 * (1 - t);
+        v = 0.26 + 0.12 * (1 - t);
         nx = (lx < 0.5 ? -1 : 1) * 0.35 * t;
         if ((ly * 2) % 1 > 0.92) { v *= 0.7; ny = -0.4; }
       }
@@ -126,8 +126,8 @@ export function plasterTexture() {
   const streak = new Float32Array(W).map(() => rand());
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
-    let v = 0.82 + (f[i] - 0.5) * 0.28;
-    v -= Math.max(0, streak[x] - 0.82) * 0.5 * (0.5 + 0.5 * Math.sin(y * 0.02 + x));
+    let v = 0.8 + (f[i] - 0.5) * 0.4;
+    v -= Math.max(0, streak[x] - 0.75) * 0.7 * (0.5 + 0.5 * Math.sin(y * 0.02 + x)) * (1 - y / H * 0.6);
     const g = Math.round(Math.max(0, Math.min(1, v)) * 255);
     img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = g; img.data[i * 4 + 3] = 255;
   }
@@ -186,45 +186,105 @@ export function brickTexture({ bw = 128, bh = 64, mortar = 3, lo = 0.55, hi = 0.
   return tex(c);
 }
 
-/** 隔扇门：一开间 4 扇，上部三交六椀菱花，下部裙板 */
+/** 隔扇门：一开间 4 扇。上部三交六椀菱花格心，中部绦环板，下部裙板 */
 export function latticeTexture(rich = true) {
-  const W = 256, H = 512;
+  const W = 512, H = 1024;
   const [c, ctx] = canvas(W, H);
-  const frame = rich ? '#7b2318' : '#6e2a1e';
-  const gold = rich ? '#c9a24a' : '#9b6b3a';
-  ctx.fillStyle = frame; ctx.fillRect(0, 0, W, H);
+  const frame = rich ? '#7a1f15' : '#6a261b';
+  const frameHi = rich ? '#9a3424' : '#82372a';
+  const gold = rich ? '#d6ad52' : '#a8794a';
+  ctx.fillStyle = '#3a120c'; ctx.fillRect(0, 0, W, H);
   const pw = W / 4;
+  const bevel = (x, y, w, h, base, hi) => {
+    ctx.fillStyle = base; ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = hi; ctx.fillRect(x, y, w, 3); ctx.fillRect(x, y, 3, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x, y + h - 3, w, 3); ctx.fillRect(x + w - 3, y, 3, h);
+  };
   for (let p = 0; p < 4; p++) {
-    const x0 = p * pw + 4, w = pw - 8;
-    // 格心（上部 58%）
-    const y0 = 14, h = H * 0.56;
-    ctx.fillStyle = '#2a1410'; ctx.fillRect(x0 + 3, y0, w - 6, h);
-    ctx.strokeStyle = gold; ctx.lineWidth = 2.2;
-    ctx.save(); ctx.beginPath(); ctx.rect(x0 + 3, y0, w - 6, h); ctx.clip();
-    const s = 12;
-    for (let k = -40; k < 80; k++) {
-      ctx.beginPath(); ctx.moveTo(x0 + k * s, y0); ctx.lineTo(x0 + k * s + h * 0.577, y0 + h); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(x0 + k * s, y0); ctx.lineTo(x0 + k * s - h * 0.577, y0 + h); ctx.stroke();
+    const x0 = p * pw;
+    bevel(x0 + 3, 0, pw - 6, H, frame, frameHi); // 边梃
+    // 格心
+    const gx = x0 + 18, gy = 26, gw = pw - 36, gh = H * 0.55;
+    ctx.fillStyle = '#1c0a07'; ctx.fillRect(gx, gy, gw, gh);
+    ctx.save(); ctx.beginPath(); ctx.rect(gx, gy, gw, gh); ctx.clip();
+    const sz = 22, hgt = sz * 0.866;
+    ctx.lineWidth = 3.2; ctx.strokeStyle = gold;
+    for (let row = -1; row < gh / hgt + 2; row++) {
+      for (let k = -1; k < gw / sz + 2; k++) {
+        const cx = gx + k * sz + (row % 2 ? sz / 2 : 0), cy = gy + row * hgt;
+        // 三交：三条线相交，外绕六瓣小圆（椀）
+        for (let a = 0; a < 3; a++) {
+          const ang = (a * Math.PI) / 3;
+          ctx.beginPath(); ctx.moveTo(cx - Math.cos(ang) * sz * 0.5, cy - Math.sin(ang) * sz * 0.5); ctx.lineTo(cx + Math.cos(ang) * sz * 0.5, cy + Math.sin(ang) * sz * 0.5); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(cx, cy, sz * 0.22, 0, Math.PI * 2); ctx.stroke();
+        if (rich) { ctx.fillStyle = '#f3d27a'; ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.fill(); }
+      }
     }
-    for (let y = y0; y < y0 + h; y += s * 0.866) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + w, y); ctx.stroke(); }
     ctx.restore();
-    ctx.strokeStyle = rich ? '#d8b25a' : '#8c5a30'; ctx.lineWidth = 3; ctx.strokeRect(x0 + 3, y0, w - 6, h);
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 4; ctx.strokeRect(gx, gy, gw, gh);
     // 绦环板
-    const y1 = y0 + h + 10;
-    ctx.fillStyle = '#5c1a12'; ctx.fillRect(x0 + 5, y1, w - 10, 34);
-    ctx.strokeStyle = gold; ctx.lineWidth = 2; ctx.strokeRect(x0 + 9, y1 + 4, w - 18, 26);
+    const ty = gy + gh + 22, th = 70;
+    bevel(gx, ty, gw, th, '#5e1810', '#7a2a1c');
+    ctx.strokeStyle = gold; ctx.lineWidth = 3; ctx.strokeRect(gx + 10, ty + 10, gw - 20, th - 20);
+    ctx.fillStyle = gold; ctx.beginPath(); ctx.ellipse(gx + gw / 2, ty + th / 2, 18, 10, 0, 0, Math.PI * 2); ctx.fill();
     // 裙板
-    const y2 = y1 + 46, h2 = H - y2 - 18;
-    ctx.fillStyle = '#5c1a12'; ctx.fillRect(x0 + 5, y2, w - 10, h2);
-    ctx.strokeStyle = gold; ctx.lineWidth = 2; ctx.strokeRect(x0 + 9, y2 + 5, w - 18, h2 - 10);
+    const qy = ty + th + 22, qh = H - qy - 40;
+    bevel(gx, qy, gw, qh, '#5e1810', '#7a2a1c');
+    ctx.strokeStyle = gold; ctx.lineWidth = 3; ctx.strokeRect(gx + 12, qy + 12, gw - 24, qh - 24);
     if (rich) {
-      ctx.beginPath(); ctx.ellipse(x0 + w / 2, y2 + h2 / 2, w * 0.28, h2 * 0.3, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#b8903e'; ctx.fill();
+      ctx.fillStyle = '#c69a42';
+      ctx.beginPath(); ctx.ellipse(gx + gw / 2, qy + qh / 2, gw * 0.3, qh * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#f2d28a'; ctx.lineWidth = 2; ctx.stroke();
     }
   }
-  // 门框
-  ctx.fillStyle = '#4a1610'; ctx.fillRect(0, 0, W, 8); ctx.fillRect(0, H - 10, W, 10);
   return tex(c, { repeat: false });
+}
+
+/** 檐口：瓦当（圆）与滴水（三角）。横向 2 垄，与屋面瓦垄对齐 */
+export function eaveTexture() {
+  const W = 256, H = 64;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(0, 0, W, H);
+  for (let k = 0; k < 2; k++) {
+    const cx = k * 128 + 64;
+    // 滴水：垄沟下方的倒三角
+    for (const dx of [-64, 64]) {
+      const x = cx + dx;
+      ctx.fillStyle = '#9a9a9a';
+      ctx.beginPath(); ctx.moveTo(x - 30, 10); ctx.lineTo(x + 30, 10); ctx.lineTo(x, 60); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x - 30, 10, 60, 4);
+    }
+    // 瓦当：筒瓦端头的圆盘
+    const g = ctx.createRadialGradient(cx - 6, 24, 4, cx, 30, 28);
+    g.addColorStop(0, '#f2f2f2'); g.addColorStop(0.7, '#c8c8c8'); g.addColorStop(1, '#7a7a7a');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, 30, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#6a6a6a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, 30, 18, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#8a8a8a'; ctx.beginPath(); ctx.arc(cx, 30, 7, 0, Math.PI * 2); ctx.fill();
+  }
+  return tex(c);
+}
+
+/** 屋脊：上下线脚 + 中间浮雕花纹（灰度，由顶点颜色着色） */
+export function ridgeTexture() {
+  const W = 256, H = 128;
+  const [c, ctx] = canvas(W, H);
+  ctx.fillStyle = '#b8b8b8'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#e8e8e8'; ctx.fillRect(0, 0, W, 16);
+  ctx.fillStyle = '#7a7a7a'; ctx.fillRect(0, 16, W, 6); ctx.fillRect(0, H - 22, W, 6);
+  ctx.fillStyle = '#d8d8d8'; ctx.fillRect(0, H - 16, W, 16);
+  // 花纹带
+  for (let x = 0; x < W; x += 64) {
+    ctx.strokeStyle = '#8a8a8a'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.ellipse(x + 32, H / 2, 22, 22, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#d0d0d0'; ctx.beginPath(); ctx.ellipse(x + 32, H / 2, 10, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#9a9a9a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x + 2, H / 2); ctx.quadraticCurveTo(x + 16, 30, x + 10, H / 2); ctx.stroke();
+  }
+  // 瓦件接缝
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  for (let x = 0; x < W; x += 64) ctx.fillRect(x, 0, 2, H);
+  return tex(c);
 }
 
 /** 彩画额枋：一开间。kind = 'hexi'（和玺）| 'xuanzi'（旋子）| 'su'（苏式） */
@@ -435,19 +495,24 @@ export function foliageTexture(kind = 'broad') {
     };
     branch(W / 2, H, -Math.PI / 2, 70, 8, 0);
   } else {
-    const n = kind === 'needle' ? 900 : kind === 'willow' ? 420 : 520;
+    // 几团叶簇组成不规则的轮廓，上亮下暗
+    const blobs = kind === 'willow' ? [[0.5, 0.5, 0.48]] : [[0.5, 0.52, 0.34], [0.3, 0.42, 0.24], [0.7, 0.4, 0.25], [0.38, 0.7, 0.22], [0.64, 0.7, 0.22], [0.5, 0.25, 0.2]];
+    const n = kind === 'needle' ? 2200 : kind === 'willow' ? 900 : 1700;
     for (let i = 0; i < n; i++) {
-      const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * (W * 0.47);
-      let x = W / 2 + Math.cos(a) * r, y = H / 2 + Math.sin(a) * r * (kind === 'willow' ? 1.0 : 0.92);
-      if (kind === 'willow') { x = rand() * W; y = rand() * H; }
-      const l = 0.55 + rand() * 0.45;
+      const [bx, by, br] = blobs[Math.floor(rand() * blobs.length)];
+      const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * br * W;
+      let x = bx * W + Math.cos(a) * r, y = by * H + Math.sin(a) * r;
+      if (kind === 'willow') { x = W * 0.05 + rand() * W * 0.9; y = rand() * H; }
+      const l = (0.5 + rand() * 0.42) * (1.08 - (y / H) * 0.3);
       ctx.fillStyle = `rgba(${Math.round(255 * l)},${Math.round(255 * l)},${Math.round(255 * l)},1)`;
       ctx.beginPath();
-      if (kind === 'needle') ctx.ellipse(x, y, 2.2, 7, rand() * Math.PI, 0, Math.PI * 2);
-      else if (kind === 'willow') ctx.ellipse(x, y, 1.6, 9, (rand() - 0.5) * 0.4, 0, Math.PI * 2);
-      else ctx.ellipse(x, y, 4.5, 7.5, rand() * Math.PI, 0, Math.PI * 2);
+      if (kind === 'needle') ctx.ellipse(x, y, 1.6, 5.5, rand() * Math.PI, 0, Math.PI * 2);
+      else if (kind === 'willow') ctx.ellipse(x, y, 1.5, 10, (rand() - 0.5) * 0.3, 0, Math.PI * 2);
+      else ctx.ellipse(x, y, 3.2, 5.6, rand() * Math.PI, 0, Math.PI * 2);
       ctx.fill();
     }
+    // 左上角不透明小块：供树冠实心芯取色
+    ctx.fillStyle = 'rgb(150,150,150)'; ctx.fillRect(0, 0, 12, 12);
   }
   return tex(c, { repeat: false });
 }

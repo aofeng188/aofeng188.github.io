@@ -111,8 +111,9 @@ scene.add(roomLight2);
 labels = new Labels($('labels'), camera);
 const MAJOR = ['tiananmen', 'duanmen', 'wumen', 'taihemen', 'taihedian', 'zhonghedian', 'baohedian', 'qianqingmen', 'qianqinggong', 'jiaotaidian', 'kunninggong', 'shenwumen', 'jingshan', 'huangjidian', 'cininggong', 'wenhuadian', 'wuyingdian', 'donghuamen', 'xihuamen', 'yangxindian'];
 const nameList = [];
+const AREA_IDS = new Set(['santai', 'chengqiang', 'qianqingmen_sq', 'yuhuayuan']);
 for (const [id, a] of Object.entries(REG.anchors)) {
-  const b = BUILDINGS[id]; if (!b) continue;
+  const b = BUILDINGS[id]; if (!b || AREA_IDS.has(id)) continue;
   const major = MAJOR.includes(id);
   const nm = b.name.split(' · ')[0];
   labels.addName(id, nm, [a.x, a.top + 2.5, a.z], major);
@@ -290,7 +291,7 @@ controls.addEventListener('lockfail', () => { $('walkHint').hidden = true; toast
 controls.addEventListener('mode', (e) => {
   const m = e.detail.mode;
   if (m === 'fly' || m === 'walk') {
-    if (mode === 'walk' || mode === 'fly') { mode = m; setModeButtons(m); $('flyToggle').textContent = m === 'fly' ? '落地' : '飞行'; if (m === 'fly') toast('飞行模式：可以穿过建筑，E/Q 升降，再按 F 落地。', 3500); }
+    if (mode === 'walk' || mode === 'fly') { mode = m; setModeButtons(m); $('flyToggle').textContent = m === 'fly' ? '落地' : '飞行'; if (m === 'fly') toast('飞行模式：E/Q 升降，Shift 加速，再按 F 落地。', 3500); }
   }
 });
 controls.addEventListener('step', (e) => audio.step(e.detail.run, W.env.snowAmt > 0.5));
@@ -343,7 +344,7 @@ function startTour(i) {
   controls.mode = 'tour'; controls.orbit.enabled = false;
   $('crosshair').hidden = true; $('joy').hidden = true; $('flyBtns').hidden = true; $('walkHint').hidden = true;
   $('env').hidden = true;
-  $('mini').hidden = innerWidth < 760;
+  $('mini').hidden = true;
   $('tour').hidden = false;
   ui.tour = { i: -1, paused: false, timer: null, drift: 0, inside: false };
   goStop(i);
@@ -517,7 +518,7 @@ bindToggle('setMusic', 'music', '开', '关', (v) => audio.setMusic(v));
 bindToggle('setAmb', 'amb', '开', '关', (v) => audio.setAmbience(v));
 bindToggle('setVoice', 'voice', '开', '关', (v) => { if (!v) audio.stopSay(); });
 bindToggle('setNames', 'names', '显示', '隐藏', (v) => (labels.showNames = v));
-bindToggle('setPeople', 'people', '显示', '隐藏', (v) => { for (const m of [W.people.body, W.people.legs, W.people.head]) if (m) m.visible = v; });
+bindToggle('setPeople', 'people', '显示', '隐藏', (v) => W.people.setVisible(v));
 for (const b of document.querySelectorAll('[data-q]')) {
   b.classList.toggle('on', b.dataset.q === qName);
   b.addEventListener('click', () => {

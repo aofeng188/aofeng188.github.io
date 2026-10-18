@@ -97,7 +97,7 @@ export function roof(B, o) {
   const Y = profile(o);
   const det = B.detail;
   const tileCol = rgb(o.color ?? C.yellow);
-  const ridgeCol = rgb(o.ridgeColor ?? o.color ?? C.yellow, 0.82);
+  const ridgeCol = rgb(o.ridgeColor ?? o.color ?? C.yellow, 0.88);
   const tileW = o.tileW || 0.55;
   const scale = o.scale || Math.max(0.6, Math.min(2.2, hz / 9));
   const lift = o.lift ?? Math.min(2.4, 0.15 * Math.min(hx, hz));
@@ -152,12 +152,13 @@ export function roof(B, o) {
       tileCol, f.ref);
     // 檐口：瓦当 + 椽头
     if (!o.noFascia) {
-      const ft = o.eaveT ?? 0.18 * scale + 0.12;
+      const ft = o.eaveT ?? 0.26 * scale + 0.16;
       const e0 = ss.map((s) => point(f, 0, s));
       for (let j = 0; j < e0.length - 1; j++) {
         const p = e0[j], q = e0[j + 1];
-        B.quad('glaze', [p[0], p[1] - ft * 0.45, p[2]], [q[0], q[1] - ft * 0.45, q[2]], [q[0], q[1] + 0.04, q[2]], [p[0], p[1] + 0.04, p[2]],
-          [[0, 0], [1, 0], [1, 1], [0, 1]], rgb(o.color ?? C.yellow, 0.7));
+        const t0 = (ss[j] * f.A(0)) / (2 * tileW), t1 = (ss[j + 1] * f.A(0)) / (2 * tileW);
+        B.quad('eave', [p[0], p[1] - ft * 0.45, p[2]], [q[0], q[1] - ft * 0.45, q[2]], [q[0], q[1] + 0.06, q[2]], [p[0], p[1] + 0.06, p[2]],
+          [[t0, 0], [t1, 0], [t1, 1], [t0, 1]], tileCol);
         const u0 = (ss[j] * f.A(0)) / (4 * 0.32), u1 = (ss[j + 1] * f.A(0)) / (4 * 0.32);
         B.quad('rafter', [p[0], p[1] - ft, p[2]], [q[0], q[1] - ft, q[2]], [q[0], q[1] - ft * 0.45, q[2]], [p[0], p[1] - ft * 0.45, p[2]],
           [[u0, 0], [u1, 0], [u1, 0.11], [u0, 0.11]]);
@@ -183,7 +184,7 @@ export function roof(B, o) {
       const ss2 = sSamples(Math.max(6, Math.round(ss.length * 0.6)));
       B.grid('rafter', tr, ss2.length - 1, (i, j) => sp(i / tr, ss2[j]),
         (i, j) => [(ss2[j] * (A0 + (SA - A0) * (i / tr))) / (4 * 0.32), (i / tr) * Math.max(1, D0 - SD) / 3],
-        [255, 255, 255], [0, -1, 0]);
+        [255, 255, 255], [0, -1, 0], (i) => { const k = Math.round(255 * (1 - 0.6 * (i / tr))); return [k, k, k]; });
     }
   }
 
@@ -214,7 +215,7 @@ export function roof(B, o) {
   const hipUs = uSamples(10, []).map((u) => u * hipU);
   for (const [sx, sz] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
     const hip = hipUs.map((u) => corner(sx, sz, u));
-    B.ridge('glaze', hip, hipW, hipH, ridgeCol);
+    B.ridge('ridge', hip, hipW, hipH, ridgeCol);
     // 套兽
     const tip = hip[0];
     B.box('glaze', tip[0] + sx * 0.12 * scale, tip[1] - 0.25 * scale, tip[2] + sz * 0.12 * scale, 0.22 * scale, 0.26 * scale, 0.22 * scale, { col: ridgeCol });
@@ -223,12 +224,12 @@ export function roof(B, o) {
   const topY = Y(1);
   if (type === 'wudian' || type === 'xieshan') {
     const rx = rxF + (type === 'xieshan' ? 0.15 : 0);
-    B.box('glaze', 0, topY - rh * 0.3, 0, rx * 2, rh * 1.25, rw, { col: ridgeCol });
+    B.box('ridge', 0, topY - rh * 0.3, 0, rx * 2, rh * 1.25, rw, { col: ridgeCol, us: 1 / (rh * 1.25) });
     if (type === 'xieshan') {
       // 垂脊：沿山面前后两条
       for (const sx of [1, -1]) for (const sz of [1, -1]) {
         const us = uSamples(8).map((u) => ug + (1 - ug) * u);
-        B.ridge('glaze', us.map((u) => [sx * (rxF + 0.08), Y(u), sz * az(u)]), hipW, hipH, ridgeCol);
+        B.ridge('ridge', us.map((u) => [sx * (rxF + 0.08), Y(u), sz * az(u)]), hipW, hipH, ridgeCol);
       }
     }
     if (!o.noWen) {
@@ -239,10 +240,10 @@ export function roof(B, o) {
     // 围脊：腰檐与上层墙身交接处
     const [bx, bz] = o.top;
     const y = Y(1);
-    B.box('glaze', 0, y - rh * 0.3, bz, bx * 2 + rw, rh * 0.9, rw, { col: ridgeCol });
-    B.box('glaze', 0, y - rh * 0.3, -bz, bx * 2 + rw, rh * 0.9, rw, { col: ridgeCol });
-    B.box('glaze', bx, y - rh * 0.3, 0, rw, rh * 0.9, bz * 2, { col: ridgeCol });
-    B.box('glaze', -bx, y - rh * 0.3, 0, rw, rh * 0.9, bz * 2, { col: ridgeCol });
+    B.box('ridge', 0, y - rh * 0.3, bz, bx * 2 + rw, rh * 0.9, rw, { col: ridgeCol, us: 1 / (rh * 0.9) });
+    B.box('ridge', 0, y - rh * 0.3, -bz, bx * 2 + rw, rh * 0.9, rw, { col: ridgeCol, us: 1 / (rh * 0.9) });
+    B.box('ridge', bx, y - rh * 0.3, 0, rw, rh * 0.9, bz * 2, { col: ridgeCol, us: 1 / (rh * 0.9) });
+    B.box('ridge', -bx, y - rh * 0.3, 0, rw, rh * 0.9, bz * 2, { col: ridgeCol, us: 1 / (rh * 0.9) });
   } else if (type === 'luding') {
     const tx = rxF, tz = rzF;
     B.box('glaze', 0, topY - 0.05, 0, tx * 2, 0.12, tz * 2, { col: rgb(o.color ?? C.yellow, 0.75), skip: 'b' });
@@ -306,7 +307,7 @@ function roundRoof(B, o) {
   const nr = o.type === 'round' ? 8 : N;
   for (let k = 0; k < nr; k++) {
     const kk = o.type === 'round' ? (k / nr) * N : k;
-    B.ridge('glaze', us.map((u) => pt(u, kk)), 0.18 * scale + 0.06, 0.2 * scale, ridgeCol);
+    B.ridge('ridge', us.map((u) => pt(u, kk)), 0.18 * scale + 0.06, 0.2 * scale, ridgeCol);
   }
   finial(B, Y(1) - 0.15, scale * 0.8, o.finialColor);
   return { topY: Y(1) + 2 * scale };
@@ -337,8 +338,8 @@ function gableRoof(B, o) {
         [[-hx / 1.28, 0], [hx / 1.28, 0], [hx / 1.28, 1], [-hx / 1.28, 1]]);
     }
     // 檐口
-    B.quad('glaze', [s * -hx, Y(0) - 0.2, s * hz], [s * hx, Y(0) - 0.2, s * hz], [s * hx, Y(0) + 0.03, s * hz], [s * -hx, Y(0) + 0.03, s * hz],
-      [[0, 0], [1, 0], [1, 1], [0, 1]], rgb(o.color ?? C.grey, 0.7));
+    B.quad('eave', [s * -hx, Y(0) - 0.26, s * hz], [s * hx, Y(0) - 0.26, s * hz], [s * hx, Y(0) + 0.05, s * hz], [s * -hx, Y(0) + 0.05, s * hz],
+      [[0, 0], [hx / tileW, 0], [hx / tileW, 1], [0, 1]], tileCol);
   }
   // 山墙（硬山）：墙体一直砌到屋面下
   const wx = o.gableX ?? hx - (o.type === 'xuanshan' ? 0.7 : 0.12);
@@ -359,12 +360,12 @@ function gableRoof(B, o) {
   if (o.type === 'juanpeng') {
     B.box('glaze', 0, Y(1) - rh * 0.4, 0, hx * 2, rh * 0.6, rw * 1.6, { col: tileCol });
   } else {
-    B.box('glaze', 0, Y(1) - rh * 0.3, 0, hx * 2 + 0.1, rh * 1.2, rw, { col: ridgeCol });
+    B.box('ridge', 0, Y(1) - rh * 0.3, 0, hx * 2 + 0.1, rh * 1.2, rw, { col: ridgeCol, us: 1 / (rh * 1.2) });
     if (o.wen) for (const s of [1, -1]) wen(B, s * hx, Y(1) + rh * 0.5, rh * 2.6, rw, ridgeCol, s);
   }
   for (const sx of [1, -1]) for (const sz of [1, -1]) {
     const pts = uSamples(6).map((u) => [sx * (hx - 0.02), Y(u) + 0.02, sz * hz * (1 - u)]);
-    B.ridge('glaze', pts, rw * 0.7, rh * 0.5, ridgeCol);
+    B.ridge('ridge', pts, rw * 0.7, rh * 0.5, ridgeCol);
     if (o.beasts) beasts(B, pts, o.beasts, scale, ridgeCol, rh * 0.45);
   }
   return { topY: Y(1) + rh };

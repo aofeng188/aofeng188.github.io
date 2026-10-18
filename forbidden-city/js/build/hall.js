@@ -6,6 +6,15 @@ import { roof, finial } from './roof.js';
 import { REG, addPick } from '../world/registry.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+/** 颜色按系数变暗（模拟檐下、墙脚的遮蔽） */
+export const shade = (c, k) => [Math.round(c[0] * k), Math.round(c[1] * k), Math.round(c[2] * k)];
+const WHITE = [255, 255, 255];
+
+/** 登记实体包围盒（局部坐标），供相机防穿模与标签遮挡判断 */
+export function regSolid(B, id, x0, y0, z0, x1, y1, z1) {
+  const a = B.P(x0, y0, z0), b = B.P(x1, y1, z1);
+  REG.solids.push({ id: id || null, min: [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.min(a[2], b[2])], max: [Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.max(a[2], b[2])] });
+}
 
 // ---------- 世界坐标辅助（碰撞、注册） ----------
 export function wr(B, x0, z0, x1, z1) {
@@ -132,13 +141,14 @@ export function platform(B, o) {
   const mat = o.mat || 'marble';
   const col = o.col || rgb(mat === 'marble' ? C.marble : mat === 'brick' ? C.greyBrick : C.stone);
   const capMat = o.capMat || mat;
+  const dark = shade(col, 0.68);
   if (o.sumeru && h > 0.8) {
-    B.box(mat, 0, 0, 0, hx * 2 + 0.3, h * 0.22, hz * 2 + 0.3, { col });
-    B.box(mat, 0, h * 0.22, 0, hx * 2 + 0.12, h * 0.1, hz * 2 + 0.12, { col, skip: 'b' });
-    B.box(mat, 0, h * 0.32, 0, hx * 2 - 0.25, h * 0.4, hz * 2 - 0.25, { col: rgb(C.marble, 0.92), skip: 'b' });
-    B.box(capMat, 0, h * 0.72, 0, hx * 2 + 0.15, h * 0.28, hz * 2 + 0.15, { col, skip: 'b' });
+    B.box(mat, 0, 0, 0, hx * 2 + 0.3, h * 0.22, hz * 2 + 0.3, { col: dark, colTop: shade(col, 0.85) });
+    B.box(mat, 0, h * 0.22, 0, hx * 2 + 0.12, h * 0.1, hz * 2 + 0.12, { col: shade(col, 0.85), skip: 'b' });
+    B.box(mat, 0, h * 0.32, 0, hx * 2 - 0.25, h * 0.4, hz * 2 - 0.25, { col: shade(col, 0.72), colTop: shade(col, 0.82), skip: 'b' });
+    B.box(capMat, 0, h * 0.72, 0, hx * 2 + 0.15, h * 0.28, hz * 2 + 0.15, { col: shade(col, 0.9), colTop: col, skip: 'b' });
   } else {
-    B.box(mat, 0, 0, 0, hx * 2, h, hz * 2, { col, skip: 'b' });
+    B.box(mat, 0, 0, 0, hx * 2, h, hz * 2, { col: dark, colTop: col, skip: 'b' });
   }
   wfill(B, -hx, -hz, hx, hz, h);
   const st = o.stairs || [];
@@ -199,6 +209,8 @@ function doorLeaves(B, x, z, w, h, open = true, mat = 'door') {
  *   double: 重檐；tile 瓦色；caihua 彩画等级；beasts 脊兽数；plaque 匾额 {uv, w}
  *   base: { h, pad, mat, sumeru, rail, stairs, chishou }；enter: 可进入室内
  */
+const LAT_TOP = [140, 140, 140], INNER_LAT = [120, 110, 105];
+
 export function hall(B, o) {
   if (o.noCollide && REG.col) {
     // 城台上的门楼：不写碰撞，避免覆盖下面的门洞
@@ -251,8 +263,10 @@ export function hall(B, o) {
   for (let i = 0; i <= bays; i++) colPos.push([-W / 2 + i * bayW, D / 2]);
   if (open || gate) for (let i = 0; i <= bays; i++) colPos.push([-W / 2 + i * bayW, -D / 2]);
   if (open || gate) for (let j = 1; j < dBays; j++) for (const sx of [-1, 1]) colPos.push([sx * W / 2, -D / 2 + (j * D) / dBays]);
+  const lacquerTop = shade(lacquer, 0.5);
+  const wallTop = shade(wallCol, 0.52);
   for (const [cx, cz] of colPos) {
-    B.cyl('paint', cx, 0, cz, colR, colR * 0.94, colH + 0.02, 10, { col: lacquer });
+    B.cyl('paint', cx, 0, cz, colR, colR * 0.94, colH + 0.02, 10, { col: lacquer, colTop: lacquerTop });
     B.box('marble', cx, 0, cz, colR * 2.7, 0.18, colR * 2.7, { col: rgb(C.marble), skip: 'b' });
   }
   if (enter) {
@@ -260,7 +274,7 @@ export function hall(B, o) {
       const cx = -W / 2 + i * bayW, cz = -D / 2 + (j * D) / dBays;
       if (cz > fz - 0.8) continue;
       const golden = o.goldCols && Math.abs(cx) < bayW * 1.6 && j >= dBays - 2;
-      B.cyl(golden ? 'innerGold' : 'inner', cx, 0, cz, colR * 1.08, colR, yC + 0.05, 12, { col: golden ? rgb(0xe9b949) : lacquer });
+      B.cyl(golden ? 'innerGold' : 'inner', cx, 0, cz, colR * 1.08, colR, yC + 0.05, 12, { col: golden ? rgb(0xe9b949) : lacquer, colTop: golden ? rgb(0xb88a2c) : lacquerTop });
       if (REG.col) { const p = B.P(cx, 0, cz); REG.col.block(p[0] - colR, p[2] - colR, p[0] + colR, p[2] + colR); }
     }
   }
@@ -270,22 +284,31 @@ export function hall(B, o) {
   const dado = colH * 0.3;
   if (!open && !gate) {
     // 后檐墙
-    B.box('wall', 0, 0, -D / 2, W + wt, topWall, wt, { col: wallCol, skip: 'b' });
+    B.box('wall', 0, 0, -D / 2, W + wt, topWall, wt, { col: wallCol, colTop: wallTop, skip: 'b' });
     B.box('brick', 0, 0, -D / 2, W + wt + 0.12, Math.min(1.2, dado), wt + 0.12, { col: rgb(0x8f8a84), skip: 'b' });
     // 山墙
     const sl = fz + D / 2;
     for (const s of [-1, 1]) {
-      B.box('wall', s * W / 2, 0, -D / 2 + sl / 2, wt, topWall, sl, { col: wallCol, skip: 'b' });
+      B.box('wall', s * W / 2, 0, -D / 2 + sl / 2, wt, topWall, sl, { col: wallCol, colTop: wallTop, skip: 'b' });
       B.box('brick', s * W / 2, 0, -D / 2 + sl / 2, wt + 0.12, Math.min(1.2, dado), sl + 0.12, { col: rgb(0x8f8a84), skip: 'b' });
     }
     // 前檐装修
     const doorBays = front === 'doors' ? bays : front === 'windows' ? 1 : front === 'wall' ? 1 : Math.max(1, bays - (bays >= 9 ? 4 : bays >= 5 ? 2 : 0));
     const wallBays = front === 'wall' ? bays - 1 : bays >= 11 ? 2 : 0;
     const openBays = enter ? (o.openBays ?? 1) : 0;
+    const frameCol = shade(lacquer, 0.85), frameTop = shade(lacquer, 0.45);
+    for (let i = 0; i <= bays; i++) {
+      // 抱框：开间之间的立框，让门窗有进深
+      B.box('paint', -W / 2 + i * bayW, 0, fz + 0.08, 0.26, topWall, 0.2, { col: frameCol, colTop: frameTop, skip: 'b' });
+    }
     for (let i = 0; i < bays; i++) {
       const x0 = -W / 2 + i * bayW, x1 = x0 + bayW;
       const k = Math.abs(i - (bays - 1) / 2);
       const isDoor = k < doorBays / 2;
+      const isOpenBay = k < (enter ? (o.openBays ?? 1) : 0) / 2;
+      // 中槛、下槛
+      B.box('paint', (x0 + x1) / 2, colH * 0.9 - 0.12, fz + 0.06, bayW, 0.24, 0.16, { col: frameCol, colTop: frameTop });
+      if (!isOpenBay && k < (bays - (front === 'wall' ? bays - 1 : bays >= 11 ? 2 : 0)) / 2) B.box('paint', (x0 + x1) / 2, 0, fz + 0.06, bayW, 0.22, 0.16, { col: frameCol, skip: 'b' });
       const isWall = !isDoor && (front === 'wall' || k >= (bays - wallBays) / 2);
       const isOpen = k < openBays / 2;
       const hTop = colH * 0.9;
@@ -294,18 +317,18 @@ export function hall(B, o) {
         B.quad(latticeMat, [x0, 0, fz], [x0 + bayW * 0.12, 0, fz - bayW * 0.3], [x0 + bayW * 0.12, hTop, fz - bayW * 0.3], [x0, hTop, fz], [[0, 0], [0.25, 0], [0.25, 1], [0, 1]]);
         B.quad(latticeMat, [x1 - bayW * 0.12, 0, fz - bayW * 0.3], [x1, 0, fz], [x1, hTop, fz], [x1 - bayW * 0.12, hTop, fz - bayW * 0.3], [[0.75, 0], [1, 0], [1, 1], [0.75, 1]]);
       } else if (isWall) {
-        B.box('wall', (x0 + x1) / 2, 0, fz - 0.2, bayW, topWall, 0.5, { col: wallCol, skip: 'bn' });
+        B.box('wall', (x0 + x1) / 2, 0, fz - 0.2, bayW, topWall, 0.5, { col: wallCol, colTop: wallTop, skip: enter ? 'b' : 'bn' });
         continue;
       } else if (isDoor) {
-        B.quad(latticeMat, [x0, 0, fz], [x1, 0, fz], [x1, hTop, fz], [x0, hTop, fz], [[0, 0], [1, 0], [1, 1], [0, 1]]);
-        if (enter) B.quad(latticeMat, [x1, 0, fz - 0.05], [x0, 0, fz - 0.05], [x0, hTop, fz - 0.05], [x1, hTop, fz - 0.05], [[0, 0], [1, 0], [1, 1], [0, 1]]);
+        B.quad(latticeMat, [x0, 0, fz], [x1, 0, fz], [x1, hTop, fz], [x0, hTop, fz], [[0, 0], [1, 0], [1, 1], [0, 1]], WHITE, LAT_TOP);
+        if (enter) B.quad(latticeMat, [x1, 0, fz - 0.05], [x0, 0, fz - 0.05], [x0, hTop, fz - 0.05], [x1, hTop, fz - 0.05], [[0, 0], [1, 0], [1, 1], [0, 1]], INNER_LAT, INNER_LAT);
       } else {
-        B.box(rich ? 'wall' : 'brick', (x0 + x1) / 2, 0, fz - 0.25, bayW, dado, 0.5, { col: rich ? rgb(0x7d3a2c) : rgb(0x8f8a84), skip: 'bn' });
-        B.quad(latticeMat, [x0, dado, fz], [x1, dado, fz], [x1, hTop, fz], [x0, hTop, fz], [[0, 0.42], [1, 0.42], [1, 1], [0, 1]]);
-        if (enter) B.quad(latticeMat, [x1, dado, fz - 0.05], [x0, dado, fz - 0.05], [x0, hTop, fz - 0.05], [x1, hTop, fz - 0.05], [[0, 0.42], [1, 0.42], [1, 1], [0, 1]]);
+        B.box(rich ? 'wall' : 'brick', (x0 + x1) / 2, 0, fz - 0.25, bayW, dado, 0.5, { col: rich ? rgb(0x7d3a2c) : rgb(0x8f8a84), skip: enter ? 'b' : 'bn' });
+        B.quad(latticeMat, [x0, dado, fz], [x1, dado, fz], [x1, hTop, fz], [x0, hTop, fz], [[0, 0.42], [1, 0.42], [1, 1], [0, 1]], [225, 225, 225], LAT_TOP);
+        if (enter) B.quad(latticeMat, [x1, dado, fz - 0.05], [x0, dado, fz - 0.05], [x0, hTop, fz - 0.05], [x1, hTop, fz - 0.05], [[0, 0.42], [1, 0.42], [1, 1], [0, 1]], INNER_LAT, INNER_LAT);
       }
       // 横披
-      B.quad('paint', [x0, hTop, fz], [x1, hTop, fz], [x1, topWall, fz], [x0, topWall, fz], [[0, 0], [1, 0], [1, 1], [0, 1]], rgb(0x7a2416));
+      B.quad('paint', [x0, hTop, fz], [x1, hTop, fz], [x1, topWall, fz], [x0, topWall, fz], [[0, 0], [1, 0], [1, 1], [0, 1]], shade(rgb(0x7a2416), 0.7), shade(rgb(0x7a2416), 0.45));
       if (enter) B.quad('paint', [x1, hTop, fz - 0.05], [x0, hTop, fz - 0.05], [x0, topWall, fz - 0.05], [x1, topWall, fz - 0.05], [[0, 0], [1, 0], [1, 1], [0, 1]], rgb(0x7a2416));
     }
     // 碰撞
@@ -349,8 +372,17 @@ export function hall(B, o) {
 
   // ---- 额枋、斗拱 ----
   const perBay = [bays, bays, dBays, dBays];
-  ring(B, caihua, W / 2 + 0.02, D / 2 + 0.02, colH, colH + beamH, { perBay });
-  if (dgH > 0) ring(B, 'dougong', W / 2 + 0.05, D / 2 + 0.05, colH + beamH, colH + beamH + dgH, { out: dgOut, us: 1 / 1.6 });
+  ring(B, caihua, W / 2 + 0.02, D / 2 + 0.02, colH, colH + beamH, { perBay, col: [205, 205, 205] });
+  if (dgH > 0) ring(B, 'dougong', W / 2 + 0.05, D / 2 + 0.05, colH + beamH, colH + beamH + dgH, { out: dgOut, us: 1 / 1.6, col: [150, 150, 150] });
+  // 雀替：柱头两侧的托木
+  const qt = Math.min(bayW * 0.22, 1.6), qh = Math.min(0.55, colH * 0.1);
+  for (const [cx, cz] of colPos) {
+    if (Math.abs(cz - D / 2) > 0.01 && !(open || gate)) continue;
+    for (const sx of [-1, 1]) {
+      if ((cx + sx * qt) < -W / 2 - 0.01 || (cx + sx * qt) > W / 2 + 0.01) continue;
+      B.box('xuanzi', cx + sx * (colR + qt / 2), colH - qh, cz, qt, qh, 0.2, { uv: 'unit', col: [200, 200, 200], colTop: [150, 150, 150], tx: 0, skip: 'b' });
+    }
+  }
   // 檐下顶棚：封住柱头以上空间
   const capY = colH + beamH * 0.5;
   if (!enter) {
@@ -359,8 +391,6 @@ export function hall(B, o) {
     if (lang > 0) B.quad('ceiling', [-W / 2, capY, fz], [W / 2, capY, fz], [W / 2, capY, D / 2], [-W / 2, capY, D / 2], [[0, 0], [W / 3, 0], [W / 3, lang / 3], [0, lang / 3]]);
     B.quad('ceiling', [-W / 2, yC, -D / 2], [W / 2, yC, -D / 2], [W / 2, yC, fz], [-W / 2, yC, fz], [[0, 0], [W / 3, 0], [W / 3, (fz + D / 2) / 3], [0, (fz + D / 2) / 3]]);
     B.quad('floor', [-W / 2, 0.03, fz], [W / 2, 0.03, fz], [W / 2, 0.03, -D / 2], [-W / 2, 0.03, -D / 2], [[0, 0], [W / 1.6, 0], [W / 1.6, D / 1.6], [0, D / 1.6]]);
-    // 室内上部墙面
-    ring(B, 'inner', W / 2 - wt / 2 - 0.01, (fz + D / 2) / 2 - wt / 2, colH * 0.98, yC, { inward: true, col: rgb(0x6c2016) });
     REG.interiors.push({ id: o.id, min: B.P(-W / 2, 0, -D / 2), max: B.P(W / 2, yC, fz), y: B.ty, yC: B.ty + yC });
   }
 
@@ -407,6 +437,8 @@ export function hall(B, o) {
   B.pop();
 
   const ext = Math.max(W / 2 + ov, D / 2 + ov);
+  // 实体：可进入的殿只把屋顶部分算作实体
+  regSolid(B, o.id, -W / 2 - ov, enter ? baseH + yC : 0, -D / 2 - ov, W / 2 + ov, baseH + top, D / 2 + ov);
   if (o.id) regPick(B, o.id, -W / 2 - ov, 0, -D / 2 - ov, W / 2 + ov, baseH + top, D / 2 + ov);
   if (!o.noMap) regMap(B, -W / 2 - ov * 0.8, -D / 2 - ov * 0.8, W / 2 + ov * 0.8, D / 2 + ov * 0.8, tile);
   return { top: baseH + top, baseH, colH, ext, yC, fz, W, D, lang, x: o.x, z: o.z, y: (o.y || 0) + baseH, rot: o.rot || 0 };
@@ -458,7 +490,7 @@ export function gatePlatform(B, o) {
     B.poly('wall', poly, [0, 0, s], (p) => [p[0] / 3, p[1] / 3], col);
   }
   // 侧面、顶面
-  B.box('wall', 0, 0, 0, W, H, D, { col, skip: 'bns' });
+  B.box('wall', 0, 0, 0, W, H, D, { col: shade(col, 0.8), colTop: col, skip: 'bns' });
   // 下碱：石台
   const plinth = o.plinth ?? Math.min(1.6, H * 0.12);
   B.box('marble', 0, 0, 0, W + 0.4, plinth, D + 0.4, { col: rgb(C.stone), skip: 'b' });
@@ -494,6 +526,7 @@ export function gatePlatform(B, o) {
   wblock(B, -W / 2 - 0.2, -D / 2 - 0.2, W / 2 + 0.2, D / 2 + 0.2);
   for (const t of tunnels) wfill(B, t.x - t.w / 2 + 0.3, -D / 2 - 0.3, t.x + t.w / 2 - 0.3, D / 2 + 0.3, 0);
   if (o.id) regPick(B, o.id, -W / 2, 0, -D / 2, W / 2, H, D / 2);
+  regSolid(B, o.id, -W / 2, 0, -D / 2, W / 2, H + 1.3, D / 2);
   regMap(B, -W / 2, -D / 2, W / 2, D / 2, o.color ?? C.redCity, 'gate');
   if (o.plaque) plaque(B, o.plaque, 0, (tunnels.find((t) => Math.abs(t.x) < 0.1)?.h ?? H * 0.6) + (H - (tunnels.find((t) => Math.abs(t.x) < 0.1)?.h ?? H * 0.6)) * 0.62, D / 2 + 0.05, o.plaqueW ?? 3.2);
 }
@@ -508,7 +541,7 @@ export function palaceWall(B, x0, z0, x1, z1, o = {}) {
   const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
   const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
   const sx = alongX ? len : t, sz = alongX ? t : len;
-  B.box('wall', cx, 0, cz, sx, h, sz, { col, skip: 'b', us: 0.5 });
+  B.box('wall', cx, 0, cz, sx, h, sz, { col: shade(col, 0.92), colTop: shade(col, 0.62), skip: 'b', us: 0.5 });
   B.box('brick', cx, 0, cz, sx + (alongX ? 0 : 0.14), Math.min(1.1, h * 0.16), sz + (alongX ? 0.14 : 0), { col: rgb(0x8b8580), skip: 'b' });
   // 墙帽
   const cap = o.cap ?? 0.75;
@@ -529,6 +562,7 @@ export function palaceWall(B, x0, z0, x1, z1, o = {}) {
   }
   const a = B.P(x0, 0, z0), b = B.P(x1, 0, z1);
   REG.map.walls.push([a[0], a[2], b[0], b[2], o.color ?? C.redWall]);
+  regSolid(B, null, Math.min(x0, x1) - (alongX ? 0 : t / 2), 0, Math.min(z0, z1) - (alongX ? t / 2 : 0), Math.max(x0, x1) + (alongX ? 0 : t / 2), h + cap, Math.max(z0, z1) + (alongX ? t / 2 : 0));
 }
 
 /** 随墙门 / 琉璃门：门洞 + 小屋顶 */
@@ -611,7 +645,7 @@ export function cityWall(B, x0, z0, x1, z1, outward, o = {}) {
   // 局部：沿 x 方向延伸，outward 为 ±z
   const col = rgb(C.redCity);
   const taper = (bt - tt) / 2;
-  B.box('wall', 0, 0, 0, len, H, bt, { col, skip: 'b', tz: taper, us: 0.5 });
+  B.box('wall', 0, 0, 0, len, H, bt, { col: shade(col, 0.78), colTop: col, skip: 'b', tz: taper, us: 0.5 });
   B.box('marble', 0, 0, 0, len, 0.9, bt + 0.3, { col: rgb(C.stone), skip: 'b' });
   B.quad('brick', [-len / 2, H + 0.01, tt / 2], [len / 2, H + 0.01, tt / 2], [len / 2, H + 0.01, -tt / 2], [-len / 2, H + 0.01, -tt / 2], [[0, 0], [len / 3, 0], [len / 3, tt / 3], [0, tt / 3]], rgb(0x8f8f92));
   const s = outward;
@@ -633,6 +667,7 @@ export function cityWall(B, x0, z0, x1, z1, outward, o = {}) {
     REG.col.block(Math.min(a[0], b[0]) - 0.2, Math.min(a[2], b[2]) - 0.2, Math.max(a[0], b[0]) + 0.2, Math.max(a[2], b[2]) + 0.2);
   }
   REG.map.walls.push([x0, z0, x1, z1, C.redCity, bt]);
+  regSolid(B, null, -len / 2, 0, -bt / 2, len / 2, H + 1.9, bt / 2);
 }
 
 /** 角楼：曲尺 / 十字平面，三重檐，十字脊歇山顶加宝顶 */
@@ -690,6 +725,7 @@ function cornerTowerBody(B, x, z, y, rot, id) {
   B.push(); B.sub(0, y3 + 3.55, 0); finial(B, 0, 0.9); B.pop();
   B.pop();
   if (id) regPick(B, id, -S / 2 - P - 2, 0, -S / 2 - P - 2, S / 2 + P + 2, y3 + 6, S / 2 + P + 2);
+  regSolid(B, id, -S / 2 - P - 1.6, 0, -S / 2 - P - 1.6, S / 2 + P + 1.6, y3 + 5.5, S / 2 + P + 1.6);
   regMap(B, -S / 2 - P, -S / 2 - P, S / 2 + P, S / 2 + P, tile);
 }
 
